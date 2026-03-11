@@ -1,0 +1,270 @@
+"""
+Views for secure file access - PDFs can only be downloaded by purchasers.
+"""
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.http import FileResponse, Http404
+from django.conf import settings
+import os
+
+from apps.books.models import Book, Category, BookSubmission, ContactMessage
+from apps.books.serializers import BookSerializer, BookListSerializer, BookCreateUpdateSerializer, CategorySerializer, BookSubmissionSerializer, ContactMessageSerializer
+from apps.orders.models import UserLibrary
+from apps.accounts.utils import is_authorized_admin
+
+
+class BookViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Book model with CRUD operations.
+    """
+    queryset = Book.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return BookListSerializer
+        elif self.action in ['create', 'update', 'partial_update']:
+            return BookCreateUpdateSerializer
+        return BookSerializer
+    
+    def get_queryset(self):
+        # Show all books (including inactive) for now to debug
+        queryset = Book.objects.all()
+        
+        # Filter by category
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__name=category)
+        
+        # Filter by featured
+        featured = self.request.query_params.get('featured')
+        if featured:
+            queryset = queryset.filter(is_featured=True)
+        
+        return queryset
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Category model with CRUD operations.
+    """
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+
+class IsPurchasedPermission(permissions.BasePermission):
+    """Permission to check if user has purchased the book."""
+    
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return True
+    
+    def has_object_permission(self, request, view, obj):
+        # Check if user has purchased this book
+        has_access = UserLibrary.objects.filter(
+            user=request.user,
+            book=obj
+        ).exists()
+        
+        # Also allow the authorized admin
+        if is_authorized_admin(request.user):
+            return True
+            
+        return has_access
+
+
+class SecureFileView(APIView):
+    """
+    API View to serve PDF files securely.
+    Only users who have purchased the book can access the PDF.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, book_id):
+        # Check if user has purchased the book
+        has_access = UserLibrary.objects.filter(
+            user=request.user,
+            book_id=book_id
+        ).exists()
+        
+        # Allow authorized admin access
+        if not has_access and not is_authorized_admin(request.user):
+            return Response(
+                {'error': 'You do not have access to this file. Please purchase the book first.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the book
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response(
+                {'error': 'Book not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not book.pdf_file:
+            return Response(
+                {'error': 'No PDF file available for this book'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get the file path
+        file_path = book.pdf_file.path
+        
+        if not os.path.exists(file_path):
+            return Response(
+                {'error': 'File not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Serve the file
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'inline; filename="{book.title}.pdf"'
+        response['Content-Type'] = 'application/pdf'
+        
+        return response
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def check_pdf_access(request, book_id):
+    """Check if user has access to a book's PDF."""
+    has_access = UserLibrary.objects.filter(
+        user=request.user,
+        book_id=book_id
+    ).exists()
+    
+    # Also allow the authorized admin
+    if is_authorized_admin(request.user):
+        has_access = True
+    
+    try:
+        book = Book.objects.get(id=book_id)
+        has_pdf = bool(book.pdf_file)
+    except Book.DoesNotExist:
+        has_pdf = False
+    
+    return Response({
+        'has_access': has_access,
+        'has_pdf': has_pdf,
+        'book_id': book_id
+    })
+
+
+class BookSubmissionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for BookSubmission model.
+    Public users can submit books.
+    The authorized admin can view and manage submissions.
+    """
+    queryset = BookSubmission.objects.all()
+    serializer_class = BookSubmissionSerializer
+    
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [permissions.AllowAny()]  # Allow public to submit
+        # Only the authorized admin can list/update/delete
+        from apps.accounts.permissions import IsAdminUser
+        return [IsAdminUser()]
+    
+    def get_serializer_class(self):
+        return BookSubmissionSerializer
+    
+    def get_queryset(self):
+        if is_authorized_admin(self.request.user):
+            return BookSubmission.objects.all()
+        return BookSubmission.objects.none()
+    
+    def perform_create(self, serializer):
+        # Save the submission
+        submission = serializer.save()
+        
+        # Send email to admin
+        try:
+            from django.conf import settings
+            from django.core.mail import send_mail
+            admin_email = getattr(settings, 'ADMIN_EMAIL', 'kavithedaldpi@gmail.com')
+            subject = f'New Book Submission: {submission.book_title}'
+            message = f"""
+A new book has been submitted for review.
+
+Details:
+- Name: {submission.name}
+- Email: {submission.email}
+- Contact: {submission.contact}
+- Book Title: {submission.book_title}
+- Description: {submission.description}
+
+Please login to the admin panel to review this submission.
+            """
+            send_mail(
+                subject,
+                message,
+                getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@kavithedal.com'),
+                [admin_email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Error sending email: {e}")
+
+
+class ContactMessageViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for ContactMessage model.
+    Public users can submit contact messages.
+    The authorized admin can view and manage messages.
+    """
+    queryset = ContactMessage.objects.all()
+    serializer_class = ContactMessageSerializer
+    
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [permissions.AllowAny()]  # Allow public to submit
+        # Only the authorized admin can list/update/delete
+        from apps.accounts.permissions import IsAdminUser
+        return [IsAdminUser()]
+    
+    def get_serializer_class(self):
+        return ContactMessageSerializer
+    
+    def get_queryset(self):
+        if is_authorized_admin(self.request.user):
+            return ContactMessage.objects.all()
+        return ContactMessage.objects.none()
+    
+    def perform_create(self, serializer):
+        # Save the message
+        message = serializer.save()
+        
+        # Send email to admin
+        try:
+            from django.conf import settings
+            from django.core.mail import send_mail
+            admin_email = getattr(settings, 'ADMIN_EMAIL', 'kavithedaldpi@gmail.com')
+            subject = f'New Contact Message: {message.name}'
+            message_text = f"""
+You have received a new contact message.
+
+From: {message.name}
+Email: {message.email}
+
+Message:
+{message.message}
+
+Please login to the admin panel to respond.
+            """
+            send_mail(
+                subject,
+                message_text,
+                getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@kavithedal.com'),
+                [admin_email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Error sending email: {e}")

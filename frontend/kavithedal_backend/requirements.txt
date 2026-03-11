@@ -1,0 +1,23 @@
+# Django and REST Framework
+Django>=5.1,<6.0
+djangorestframework>=3.15,<4.0
+djangorestframework-simplejwt>=5.3,<6.0
+django-filter>=24.0,<25.0
+
+# Database (use SQLite for development, psycopg2-binary for PostgreSQL production)
+# psycopg2-binary>=2.9,<3.0
+
+# CORS
+django-cors-headers>=4.3,<5.0
+
+# Pillow for image handling
+Pillow>=10.0,<11.0
+
+# Python dotenv for environment variables
+python-dotenv>=1.0,<2.0
+
+# gunicorn for production
+gunicorn>=21.0,<22.0
+
+# whitenoise for static files
+whitenoise>=6.6,<7.0
