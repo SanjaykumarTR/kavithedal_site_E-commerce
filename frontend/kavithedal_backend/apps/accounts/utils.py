@@ -1,9 +1,21 @@
 """
 Utility functions for Kavithedal Publications.
 """
+import os
+from django.conf import settings
 
-# Admin email that is allowed to access the admin panel
-ADMIN_ALLOWED_EMAIL = 'kavithedaldpi@gmail.com'
+
+def _get_admin_allowed_email():
+    """
+    Return the admin email from Django settings (which reads from the ADMIN_EMAIL
+    environment variable). Fallback to empty string so the check fails safely
+    rather than allowing an unexpected email.
+    """
+    return getattr(settings, 'ADMIN_EMAIL', '').lower().strip()
+
+
+# Kept for backwards-compatibility — dynamic property via function above
+ADMIN_ALLOWED_EMAIL = property(_get_admin_allowed_email)
 
 
 def is_authorized_admin(user):
@@ -29,7 +41,7 @@ def is_authorized_admin(user):
     if not hasattr(user, 'email') or not user.email:
         return False
     
-    return user.email.lower() == ADMIN_ALLOWED_EMAIL
+    return user.email.lower() == _get_admin_allowed_email()
 
 
 def is_admin_user(user):

@@ -19,10 +19,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Debug logging
-    console.log('Form submit:', { isRegister: isRegister, email: form.email, password: form.password ? '***' : 'empty' });
-    
+
     if (!form.email || !form.password) {
       setError(language === "en" ? "Please fill in all fields." : "அனைத்து புலங்களையும் நிரப்பவும்.");
       return;
@@ -42,7 +39,6 @@ export default function Login() {
           password: form.password,
           confirm_password: form.password
         };
-        console.log('Register request:', registerData);
         res = await api.post("/api/register/", registerData);
         
         const data = res.data;
@@ -66,8 +62,7 @@ export default function Login() {
         });
         
         const data = res.data;
-        console.log("API Response:", data);
-        
+
         // Handle any status - redirect based on role
         if (data.access_token) {
           localStorage.setItem("access_token", data.access_token);
@@ -85,7 +80,6 @@ export default function Login() {
         
         // Handle USER_LOGIN_SUCCESS
         if (data.status === "USER_LOGIN_SUCCESS") {
-          console.log("User login success, data:", data);
           localStorage.setItem("access_token", data.access_token);
           localStorage.setItem("refresh_token", data.refresh_token);
           localStorage.setItem("auth_user", JSON.stringify({ email: form.email, role: data.role }));
@@ -94,19 +88,11 @@ export default function Login() {
           return;
         }
         
-        // Handle ADMIN_OTP_REQUIRED
+        // Handle ADMIN_OTP_REQUIRED — redirect to OTP verification page
         if (data.status === "ADMIN_OTP_REQUIRED") {
           localStorage.setItem("pending_admin_id", data.admin_id);
           localStorage.setItem("pending_admin_email", form.email);
-          // Store OTP for development
-          if (data.otp) {
-            localStorage.setItem("dev_otp", data.otp);
-          }
-          if (data.debug_otp) {
-            localStorage.setItem("dev_otp", data.debug_otp);
-            alert("Debug OTP: " + data.debug_otp);
-          }
-          navigate(data.redirect);
+          navigate(data.redirect || "/verify-otp");
           return;
         }
       }

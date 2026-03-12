@@ -4,6 +4,10 @@ Book Model for Kavithedal Publications.
 import uuid
 from django.db import models
 from apps.authors.models import Author
+from apps.books.validators import (
+    validate_image_type, validate_image_size,
+    validate_pdf_type, validate_pdf_size,
+)
 
 
 class Category(models.Model):
@@ -48,7 +52,12 @@ class Book(models.Model):
     ebook_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     physical_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     book_type = models.CharField(max_length=20, choices=BOOK_TYPE_CHOICES, default='both')
-    pdf_file = models.FileField(upload_to='books/pdfs/', blank=True, null=True)
+    pdf_file = models.FileField(
+        upload_to='books/pdfs/',
+        blank=True,
+        null=True,
+        validators=[validate_pdf_type, validate_pdf_size],
+    )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
@@ -56,7 +65,13 @@ class Book(models.Model):
         blank=True,
         related_name='books'
     )
-    cover_image = models.ImageField(upload_to='books/covers/', blank=True, null=True)
+    cover_image = models.ImageField(
+        upload_to='books/covers/',
+        blank=True,
+        null=True,
+        validators=[validate_image_type, validate_image_size],
+    )
+    stock = models.PositiveIntegerField(default=0, help_text='Number of physical copies in stock')
     published_date = models.DateField(blank=True, null=True)
     isbn = models.CharField(max_length=20, blank=True)
     pages = models.PositiveIntegerField(default=0)

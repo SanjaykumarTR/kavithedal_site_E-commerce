@@ -1,23 +1,35 @@
-# Django and REST Framework
+# ─── Django Core ─────────────────────────────────────────────────────────────
 Django>=5.1,<6.0
 djangorestframework>=3.15,<4.0
 djangorestframework-simplejwt>=5.3,<6.0
 django-filter>=24.0,<25.0
 
-# Database (use SQLite for development, psycopg2-binary for PostgreSQL production)
-# psycopg2-binary>=2.9,<3.0
+# ─── Database ─────────────────────────────────────────────────────────────────
+# psycopg2-binary: PostgreSQL adapter (used on Render / production)
+psycopg2-binary>=2.9,<3.0
+# dj-database-url: parse DATABASE_URL env variable into Django DATABASES dict
+dj-database-url>=2.1,<3.0
 
-# CORS
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 django-cors-headers>=4.3,<5.0
 
-# Pillow for image handling
+# ─── Image Handling ───────────────────────────────────────────────────────────
 Pillow>=10.0,<11.0
 
-# Python dotenv for environment variables
+# ─── Environment Variables ────────────────────────────────────────────────────
 python-dotenv>=1.0,<2.0
 
-# gunicorn for production
+# ─── Production Server ────────────────────────────────────────────────────────
 gunicorn>=21.0,<22.0
 
-# whitenoise for static files
+# ─── Static Files (production) ────────────────────────────────────────────────
 whitenoise>=6.6,<7.0
+
+# ─── Payment Gateway ──────────────────────────────────────────────────────────
+razorpay>=1.4,<2.0
+
+# ─── Cloud Storage (Cloudinary — persistent media on Render) ─────────────────
+# cloudinary: Official Cloudinary Python SDK
+cloudinary>=1.36,<2.0
+# django-cloudinary-storage: Django storage backend for Cloudinary
+django-cloudinary-storage>=0.3,<0.4

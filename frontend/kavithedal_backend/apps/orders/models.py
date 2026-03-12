@@ -168,6 +168,7 @@ class Payment(models.Model):
         ('card', 'Credit/Debit Card'),
         ('upi', 'UPI'),
         ('netbanking', 'Net Banking'),
+        ('simulated', 'Simulated (Dev/Test)'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

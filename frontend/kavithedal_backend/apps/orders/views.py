@@ -1,5 +1,5 @@
 """
-Views for Orders App - Simulated purchase without payment.
+Views for Orders App - Order management and Razorpay payment integration.
 """
 import razorpay
 from django.conf import settings
@@ -247,21 +247,27 @@ class UserLibraryViewSet(viewsets.ModelViewSet):
 
 class CreateOrderView(APIView):
     """
-    API View to create an order.
-    
+    API View to create an order and initiate Razorpay payment.
+
     For physical books:
     - Calculate delivery charge based on PIN code
-    - Support Razorpay payment integration
-    
+    - Returns Razorpay order details for frontend checkout
+
     For ebooks:
     - Direct purchase without delivery charge
+    - Returns Razorpay order details for frontend checkout
     """
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request):
         book_id = request.data.get('book_id')
         order_type = request.data.get('order_type', 'physical')  # 'ebook' or 'physical'
-        simulate = request.data.get('simulate', True)  # Default to simulation mode
+        # simulate is ONLY allowed when no Razorpay keys are configured (local dev)
+        _razorpay_configured = bool(
+            getattr(settings, 'RAZORPAY_KEY_ID', '') and
+            getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+        )
+        simulate = not _razorpay_configured
         
         if not book_id:
             return Response(
@@ -410,131 +416,122 @@ class CreateOrderView(APIView):
 
 
 class VerifyPaymentView(APIView):
-    """API View to verify payment and complete the order - Simulated version."""
+    """
+    API View to verify Razorpay payment signature and complete the order.
+    When Razorpay is not configured (local dev), falls back to simulation.
+    """
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request):
-        # For simulated purchases, we just complete the order directly
-        # This endpoint exists for backward compatibility
         order_id = request.data.get('order_id')
-        simulate = request.data.get('simulate', True)
-        
+        razorpay_payment_id = request.data.get('razorpay_payment_id')
+        razorpay_signature = request.data.get('razorpay_signature')
+        razorpay_order_id = request.data.get('razorpay_order_id')
+
         if not order_id:
             return Response(
                 {'error': 'order_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # If simulation mode, directly complete the order
-        if simulate:
-            try:
-                order = Order.objects.get(id=order_id, user=request.user)
-            except Order.DoesNotExist:
-                return Response(
-                    {'error': 'Order not found'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            if order.status == 'completed':
-                return Response({
-                    'status': 'already_completed',
-                    'order_id': str(order.id),
-                    'message': 'Order already completed'
-                })
-            
-            # Create simulated payment and complete order
-            payment = Payment.objects.create(
-                order=order,
-                razorpay_order_id=f'simulated_{order.id}',
-                razorpay_payment_id=f'simulated_payment_{order.id}',
-                amount=order.total_price,
-                status='completed',
-                payment_method='simulated',
-                transaction_id=f'sim_txn_{order.id}'
-            )
-            
-            order.status = 'completed'
-            order.save()
-            
-            # Add to user's library if it's an ebook
-            if order.order_type == 'ebook':
-                UserLibrary.objects.get_or_create(
-                    user=order.user,
-                    book=order.book,
-                    defaults={'order': order}
-                )
-            
-            return Response({
-                'status': 'Payment successful',
-                'order_id': str(order.id),
-                'message': 'Your purchase was successful!'
-            })
-        
-        # Original Razorpay verification code (kept for reference)
-        razorpay_payment_id = request.data.get('razorpay_payment_id')
-        razorpay_signature = request.data.get('razorpay_signature')
-        
-        if not all([order_id, razorpay_payment_id, razorpay_signature]):
-            return Response(
-                {'error': 'Missing required fields'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+
         try:
             order = Order.objects.get(id=order_id, user=request.user)
         except Order.DoesNotExist:
-            return Response(
-                {'error': 'Order not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        if order.status != 'pending':
-            return Response(
-                {'error': 'Order already processed'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            payment = Payment.objects.get(order=order, razorpay_payment_id=razorpay_payment_id)
-        except Payment.DoesNotExist:
-            return Response(
-                {'error': 'Payment record not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Verify Razorpay signature - Commented out as Razorpay is not used
-        # client = razorpay.Client(
-        #     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        # )
-        
-        # params_dict = {
-        #     'razorpay_order_id': payment.razorpay_order_id,
-        #     'razorpay_payment_id': razorpay_payment_id,
-        #     'razorpay_signature': razorpay_signature
-        # }
-        
-        # Simulating successful payment
-        payment.razorpay_payment_id = razorpay_payment_id
-        payment.razorpay_signature = razorpay_signature
-        payment.status = 'completed'
-        payment.transaction_id = razorpay_payment_id
-        payment.save()
-        
-        order.status = 'completed'
-        order.save()
-        
-        # Add to user's library if it's an ebook
-        if order.order_type == 'ebook':
-            UserLibrary.objects.get_or_create(
-                user=order.user,
-                book=order.book,
-                defaults={'order': order}
-            )
-        
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status == 'completed':
+            return Response({
+                'status': 'already_completed',
+                'order_id': str(order.id),
+                'message': 'Order already completed',
+            })
+
+        _razorpay_configured = bool(
+            getattr(settings, 'RAZORPAY_KEY_ID', '') and
+            getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+        )
+
+        if _razorpay_configured:
+            # --- Real Razorpay signature verification ---
+            if not all([razorpay_payment_id, razorpay_signature, razorpay_order_id]):
+                return Response(
+                    {'error': 'Missing required fields: razorpay_payment_id, razorpay_signature, razorpay_order_id'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                client = razorpay.Client(
+                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+                )
+                client.utility.verify_payment_signature({
+                    'razorpay_order_id': razorpay_order_id,
+                    'razorpay_payment_id': razorpay_payment_id,
+                    'razorpay_signature': razorpay_signature,
+                })
+            except razorpay.errors.SignatureVerificationError:
+                return Response(
+                    {'error': 'Payment verification failed — invalid signature'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                payment, _ = Payment.objects.get_or_create(
+                    order=order,
+                    defaults={
+                        'razorpay_order_id': razorpay_order_id,
+                        'razorpay_payment_id': razorpay_payment_id,
+                        'razorpay_signature': razorpay_signature,
+                        'amount': order.total_price,
+                        'status': 'completed',
+                        'payment_method': 'razorpay',
+                        'transaction_id': razorpay_payment_id,
+                    }
+                )
+                if payment.status != 'completed':
+                    payment.razorpay_payment_id = razorpay_payment_id
+                    payment.razorpay_signature = razorpay_signature
+                    payment.status = 'completed'
+                    payment.transaction_id = razorpay_payment_id
+                    payment.save()
+
+                order.status = 'completed'
+                order.payment_status = 'paid'
+                order.razorpay_payment_id = razorpay_payment_id
+                order.transaction_id = razorpay_payment_id
+                order.save()
+
+                if order.order_type == 'ebook':
+                    UserLibrary.objects.get_or_create(
+                        user=order.user,
+                        book=order.book,
+                        defaults={'order': order},
+                    )
+        else:
+            # --- Simulation mode (no Razorpay keys configured — local dev only) ---
+            with transaction.atomic():
+                Payment.objects.create(
+                    order=order,
+                    razorpay_order_id=f'sim_{order.id}',
+                    razorpay_payment_id=f'sim_pay_{order.id}',
+                    amount=order.total_price,
+                    status='completed',
+                    payment_method='simulated',
+                    transaction_id=f'sim_txn_{order.id}',
+                )
+                order.status = 'completed'
+                order.payment_status = 'paid'
+                order.save()
+
+                if order.order_type == 'ebook':
+                    UserLibrary.objects.get_or_create(
+                        user=order.user,
+                        book=order.book,
+                        defaults={'order': order},
+                    )
+
         return Response({
             'status': 'Payment successful',
             'order_id': str(order.id),
-            'message': 'Your purchase was successful!'
+            'message': 'Your purchase was successful!',
         })
 
 
@@ -746,33 +743,43 @@ class VerifyEbookPaymentView(APIView):
         if purchase.payment_status == 'completed':
             return Response({
                 'status': 'already_completed',
-                'message': 'Purchase already completed'
+                'message': 'Purchase already completed',
             })
-        
-        # In production, verify Razorpay signature
-        # import razorpay
-        # from django.conf import settings
-        # client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-        # params_dict = {
-        #     'razorpay_order_id': razorpay_order_id,
-        #     'razorpay_payment_id': razorpay_payment_id,
-        #     'razorpay_signature': razorpay_signature
-        # }
-        # client.utility.verify_payment_signature(params_dict)
-        
-        # For now, complete the purchase directly (simulated)
-        purchase.razorpay_payment_id = razorpay_payment_id
-        purchase.razorpay_signature = razorpay_signature
-        purchase.razorpay_order_id = razorpay_order_id
-        purchase.payment_status = 'completed'
-        purchase.transaction_id = razorpay_payment_id
-        purchase.save()
-        
-        # Add to user's library
-        UserLibrary.objects.get_or_create(
-            user=request.user,
-            book=purchase.book
+
+        # Verify Razorpay signature before completing the purchase
+        _razorpay_configured = bool(
+            getattr(settings, 'RAZORPAY_KEY_ID', '') and
+            getattr(settings, 'RAZORPAY_KEY_SECRET', '')
         )
+        if _razorpay_configured:
+            try:
+                client = razorpay.Client(
+                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+                )
+                client.utility.verify_payment_signature({
+                    'razorpay_order_id': razorpay_order_id,
+                    'razorpay_payment_id': razorpay_payment_id,
+                    'razorpay_signature': razorpay_signature,
+                })
+            except razorpay.errors.SignatureVerificationError:
+                return Response(
+                    {'error': 'Payment verification failed — invalid signature'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        with transaction.atomic():
+            purchase.razorpay_payment_id = razorpay_payment_id
+            purchase.razorpay_signature = razorpay_signature
+            purchase.razorpay_order_id = razorpay_order_id
+            purchase.payment_status = 'completed'
+            purchase.transaction_id = razorpay_payment_id
+            purchase.save()
+
+            # Add to user's library
+            UserLibrary.objects.get_or_create(
+                user=request.user,
+                book=purchase.book,
+            )
         
         # Send admin email
         subject = f'New eBook Purchase: {purchase.book.title}'

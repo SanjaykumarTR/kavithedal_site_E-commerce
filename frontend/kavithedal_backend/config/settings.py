@@ -1,22 +1,41 @@
 """
 Django settings for Kavithedal Publications Backend.
+Production-ready configuration — all secrets loaded from environment variables.
 """
 import os
+import dj_database_url
 from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# ─── Base directory ───────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-kavithedal-2024-dev-key-change-in-production')
+# Load .env file for local development. On Render, env vars are set in the
+# dashboard so this call is a safe no-op there.
+load_dotenv(BASE_DIR / '.env')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+# ─── Core Security ────────────────────────────────────────────────────────────
 
-# Application definition
+# Never commit a real secret key. Generate one with:
+#   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = os.environ['SECRET_KEY']  # Required — raises KeyError if missing
+
+# DEBUG must be False in production. Set DEBUG=True only in local .env
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+# Render assigns RENDER_EXTERNAL_HOSTNAME automatically for deployed services.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+
+_allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()]
+
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+
+# ─── Application Definition ───────────────────────────────────────────────────
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -24,14 +43,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Third party apps
+
+    # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    
+    'cloudinary',
+    'cloudinary_storage',
+
     # Local apps
     'apps.accounts',
     'apps.books',
@@ -43,6 +64,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise must come directly after SecurityMiddleware
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -72,65 +95,82 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
 
-# Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
+# ─── Database ─────────────────────────────────────────────────────────────────
+# Uses DATABASE_URL env var when set (Render PostgreSQL / any 12-factor DB).
+# Falls back to local SQLite for development when DATABASE_URL is not set.
+_DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if _DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            _DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+
+# ─── Password Validation ──────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Custom User Model
+
+# ─── Custom User Model ────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'accounts.AdminUser'
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
+
+# ─── Internationalisation ─────────────────────────────────────────────────────
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = True  # Always True — use timezone-aware datetimes throughout
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-STATIC_URL = 'static/'
+
+# ─── Static Files ─────────────────────────────────────────────────────────────
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Media files
-MEDIA_URL = 'media/'
+# WhiteNoise: compressed + hashed static files with long-term caching headers
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+
+# ─── Media Files ──────────────────────────────────────────────────────────────
+# NOTE: Render disk is ephemeral — uploaded media is lost on redeploy.
+# For persistent media, configure Cloudinary (see bottom of this file).
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
+
+# ─── Default Primary Key ──────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Email settings (for OTP)
+
+# ─── Email (Gmail SMTP) ───────────────────────────────────────────────────────
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'kavithedaldpi@gmail.com'
-EMAIL_HOST_PASSWORD = 'tmqw tqss ikkt tfju'
-DEFAULT_FROM_EMAIL = 'Kavithedal Publications <kavithedaldpi@gmail.com>'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'DEFAULT_FROM_EMAIL',
+    'Kavithedal Publications <noreply@kavithedal.com>'
+)
 
-# REST Framework settings
+
+# ─── Django REST Framework ────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'apps.accounts.authentication.CustomJWTAuthentication',
@@ -139,7 +179,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
+    'PAGE_SIZE': 12,
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -148,9 +188,19 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
     ),
+    # Rate limiting protects login, contact, testimonial and contest endpoints
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/hour',
+        'user': '300/hour',
+    },
 }
 
-# JWT Settings
+
+# ─── JWT Settings ─────────────────────────────────────────────────────────────
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -162,8 +212,23 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
-# CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# Set CORS_ALLOWED_ORIGINS as comma-separated URLs in env, e.g.:
+#   https://kavithedal.onrender.com,https://kavithedal.com
+_cors_env = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if _cors_env:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()]
+    CORS_ALLOW_ALL_ORIGINS = False
+else:
+    # Development fallback — allow all only when DEBUG=True
+    CORS_ALLOW_ALL_ORIGINS = DEBUG
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:5173',
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -177,17 +242,42 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# File Upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 
-# Logging
+# ─── Production Security Headers ──────────────────────────────────────────────
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+
+
+# ─── File Upload Limits ───────────────────────────────────────────────────────
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+
+
+# ─── Razorpay ─────────────────────────────────────────────────────────────────
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+
+
+# ─── Admin Email ──────────────────────────────────────────────────────────────
+# The single email address allowed to access the admin panel (OTP-protected).
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '')
+
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
     },
@@ -199,10 +289,15 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': 'WARNING' if not DEBUG else 'INFO',
     },
     'loggers': {
         'django': {
+            'handlers': ['console'],
+            'level': 'WARNING' if not DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'apps': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
@@ -210,9 +305,25 @@ LOGGING = {
     },
 }
 
-# Razorpay settings
-RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', 'rzp_test_SNVfi9RSN1NX74')
-RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', 'zCJ2lh8RFrQQzKM4nLAo2gUr')
 
-# Admin email for notifications
-ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'kavithedaldpi@gmail.com')
+# ─── Cloudinary for Persistent Media Storage ──────────────────────────────────
+# Render filesystem is ephemeral — Cloudinary keeps book covers, PDFs, and
+# author photos alive across redeploys.
+# Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in env.
+_cloudinary_configured = bool(
+    os.environ.get('CLOUDINARY_CLOUD_NAME') and
+    os.environ.get('CLOUDINARY_API_KEY') and
+    os.environ.get('CLOUDINARY_API_SECRET')
+)
+
+if _cloudinary_configured:
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY':    os.environ.get('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+    }
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # Keep MEDIA_URL pointing to Cloudinary CDN root (library uses this as base)
+    MEDIA_URL = 'https://res.cloudinary.com/{}/'.format(
+        os.environ.get('CLOUDINARY_CLOUD_NAME')
+    )

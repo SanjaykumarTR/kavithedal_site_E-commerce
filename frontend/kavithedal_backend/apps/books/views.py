@@ -8,6 +8,9 @@ from rest_framework.views import APIView
 from django.http import FileResponse, Http404
 from django.conf import settings
 import os
+import logging
+
+logger = logging.getLogger('apps')
 
 from apps.books.models import Book, Category, BookSubmission, ContactMessage
 from apps.books.serializers import BookSerializer, BookListSerializer, BookCreateUpdateSerializer, CategorySerializer, BookSubmissionSerializer, ContactMessageSerializer
@@ -110,25 +113,19 @@ class SecureFileView(APIView):
                 {'error': 'No PDF file available for this book'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
-        # Get the file path
-        file_path = book.pdf_file.path
-        
-        if not os.path.exists(file_path):
+
+        # Return the Cloudinary (or local dev) URL — the access check above
+        # already verified the user is authorised. The frontend opens this URL.
+        try:
+            pdf_url = book.pdf_file.url
+        except Exception as e:
+            logger.error('Could not resolve PDF URL for book %s: %s', book_id, e)
             return Response(
-                {'error': 'File not found'},
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'PDF file is not accessible'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        # Serve the file
-        response = FileResponse(
-            open(file_path, 'rb'),
-            content_type='application/pdf'
-        )
-        response['Content-Disposition'] = f'inline; filename="{book.title}.pdf"'
-        response['Content-Type'] = 'application/pdf'
-        
-        return response
+
+        return Response({'pdf_url': pdf_url, 'title': book.title})
 
 
 @api_view(['GET'])

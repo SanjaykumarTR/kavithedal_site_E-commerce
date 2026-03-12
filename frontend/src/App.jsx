@@ -31,6 +31,7 @@ import AdminContests from "./pages/admin/AdminContests";
 import AdminOrders from "./pages/admin/AdminOrders";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import UserProtectedRoute from "./components/UserProtectedRoute";
+import NotFound from "./pages/NotFound";
 
 export default function App() {
   return (
@@ -144,6 +145,9 @@ export default function App() {
         <Route path="/admin/testimonials" element={<ProtectedRoute><AdminLayout><AdminTestimonials /></AdminLayout></ProtectedRoute>} />
         <Route path="/admin/contests" element={<ProtectedRoute><AdminLayout><AdminContests /></AdminLayout></ProtectedRoute>} />
         <Route path="/admin/orders" element={<ProtectedRoute><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
+
+        {/* 404 — catch all unmatched routes */}
+        <Route path="*" element={<><Navbar /><NotFound /><Footer /></>} />
       </Routes>
     </>
   );

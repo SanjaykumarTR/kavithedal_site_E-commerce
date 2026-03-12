@@ -1,13 +1,17 @@
 """
 Views for Accounts App - Authentication and User Management.
 """
+import logging
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.core.mail import send_mail
 from django.conf import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+
+logger = logging.getLogger('apps')
 
 from rest_framework import status, viewsets, generics
 from rest_framework.decorators import action
@@ -23,7 +27,7 @@ from .serializers import (
     RegisterSerializer
 )
 from .permissions import IsAdminUser
-from .utils import ADMIN_ALLOWED_EMAIL
+from .utils import _get_admin_allowed_email
 
 
 class RegisterView(generics.GenericAPIView):
@@ -76,7 +80,7 @@ class LoginView(generics.GenericAPIView):
         # Check role
         if user.role == 'admin':
             # Only allow admin access to the specific allowed email
-            if user.email.lower() != ADMIN_ALLOWED_EMAIL:
+            if user.email.lower() != _get_admin_allowed_email():
                 return Response(
                     {'status': 'FAILED', 'message': 'Unauthorized: Only the designated admin can access the admin panel'},
                     status=status.HTTP_403_FORBIDDEN
@@ -88,11 +92,11 @@ class LoginView(generics.GenericAPIView):
             # Delete old OTPs for this user
             AdminOTP.objects.filter(user=user, is_used=False).delete()
             
-            # Create new OTP with 5 minute expiry
+            # Create new OTP with 5 minute expiry (timezone-aware)
             otp = AdminOTP.objects.create(
                 user=user,
                 otp_code=otp_code,
-                expires_at=datetime.now() + timedelta(minutes=5)
+                expires_at=timezone.now() + timedelta(minutes=5)
             )
             
             # Send OTP via email
@@ -111,16 +115,15 @@ class LoginView(generics.GenericAPIView):
                     'redirect': '/verify-otp'
                 }, status=status.HTTP_200_OK)
             except Exception as e:
-                # Log error and return OTP in response for testing
-                print(f"Email error: {e}")
-                print(f"=== DEBUG OTP for {user.email}: {otp_code} ===")
-                return Response({
-                    'status': 'ADMIN_OTP_REQUIRED',
-                    'admin_id': str(user.id),
-                    'message': 'OTP sent to registered email',
-                    'redirect': '/verify-otp',
-                    'debug_otp': otp_code
-                }, status=status.HTTP_200_OK)
+                # Log error server-side only — never expose OTP to the client
+                logger.error("Failed to send admin OTP email to %s: %s", user.email, e)
+                return Response(
+                    {
+                        'status': 'FAILED',
+                        'message': 'Could not send OTP email. Please try again or contact support.',
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
         
         # For regular users, generate tokens immediately
         refresh = RefreshToken.for_user(user)
@@ -164,26 +167,27 @@ class VerifyOTPView(APIView):
             )
         
         # Check if the admin email is allowed
-        if user.email.lower() != ADMIN_ALLOWED_EMAIL:
+        if user.email.lower() != _get_admin_allowed_email():
             return Response(
                 {'status': 'FAILED', 'message': 'Unauthorized: Only the designated admin can access the admin panel'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Find valid OTP
+        # Find valid OTP (use timezone.now() for correct tz-aware comparison)
+        now = timezone.now()
         try:
             otp = AdminOTP.objects.get(
                 user=user,
                 otp_code=otp_code,
                 is_used=False,
-                expires_at__gt=datetime.now()
+                expires_at__gt=now,
             )
         except AdminOTP.DoesNotExist:
             # Check if there's an OTP with wrong code and increment attempts
             existing_otp = AdminOTP.objects.filter(
                 user=user,
                 is_used=False,
-                expires_at__gt=datetime.now()
+                expires_at__gt=now,
             ).first()
             
             if existing_otp:

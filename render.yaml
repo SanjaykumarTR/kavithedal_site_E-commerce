@@ -1,0 +1,115 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kavithedal Publications — Render Deployment Blueprint
+#
+# This file configures all three Render services in one place.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# How to use:
+#   1. Push this file to your GitHub repository root.
+#   2. In Render dashboard → "New" → "Blueprint" → connect your repo.
+#   3. Render will create all services automatically.
+#   4. Set the environment variable values marked with "sync: false" in the
+#      Render dashboard (those are secrets that must NOT be in this file).
+# ─────────────────────────────────────────────────────────────────────────────
+
+databases:
+  # ── PostgreSQL Database ────────────────────────────────────────────────────
+  - name: kavithedal-db
+    databaseName: kavithedal_db
+    user: kavithedal_user
+    plan: free          # Upgrade to starter+ for production persistence
+    region: singapore   # Pick the region closest to your users
+
+services:
+  # ── Django Backend (Web Service) ───────────────────────────────────────────
+  - type: web
+    name: kavithedal-api
+    runtime: python
+    region: singapore
+    plan: free           # Upgrade to starter for always-on service
+    rootDir: frontend/kavithedal_backend
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info"
+    healthCheckPath: /health/
+    envVars:
+      # ── Django ────────────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        generateValue: true        # Render auto-generates a secure random value
+
+      - key: DEBUG
+        value: "False"
+
+      - key: ALLOWED_HOSTS
+        # Will be updated automatically with the Render hostname;
+        # add your custom domain here when ready.
+        value: "localhost,127.0.0.1"
+
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+
+      # ── Database ──────────────────────────────────────────────────────────
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kavithedal-db
+          property: connectionString   # Render injects this automatically
+
+      # ── Email (fill in Render dashboard — never commit real values) ───────
+      - key: EMAIL_HOST_USER
+        sync: false       # Set in Render dashboard
+
+      - key: EMAIL_HOST_PASSWORD
+        sync: false       # Set in Render dashboard
+
+      - key: DEFAULT_FROM_EMAIL
+        sync: false       # Set in Render dashboard
+
+      # ── Razorpay ─────────────────────────────────────────────────────────
+      - key: RAZORPAY_KEY_ID
+        sync: false       # Set in Render dashboard
+
+      - key: RAZORPAY_KEY_SECRET
+        sync: false       # Set in Render dashboard
+
+      # ── Admin Access ──────────────────────────────────────────────────────
+      - key: ADMIN_EMAIL
+        sync: false       # Set in Render dashboard — the OTP-protected admin email
+
+      # ── CORS ─────────────────────────────────────────────────────────────
+      # Add your Render frontend URL here after first deploy, e.g.:
+      # https://kavithedal.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false       # Set in Render dashboard after frontend is deployed
+
+      # ── Cloudinary (persistent media — book covers, PDFs, author photos) ──
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false       # Set in Render dashboard — get from cloudinary.com/console
+
+      - key: CLOUDINARY_API_KEY
+        sync: false       # Set in Render dashboard
+
+      - key: CLOUDINARY_API_SECRET
+        sync: false       # Set in Render dashboard
+
+  # ── React Frontend (Static Site) ──────────────────────────────────────────
+  - type: static
+    name: kavithedal-frontend
+    region: singapore
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: dist
+    # _redirects file in public/ handles SPA client-side routing
+    headers:
+      - path: "/*"
+        name: Cache-Control
+        value: "no-cache"         # Let the browser always check for updates
+      - path: "/assets/*"
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"  # Hashed assets cached 1 year
+    envVars:
+      # The backend API URL — set to your kavithedal-api Render URL
+      - key: VITE_API_URL
+        sync: false       # Set in Render dashboard after backend is deployed
+
+      # Razorpay public key (safe to expose)
+      - key: VITE_RAZORPAY_KEY_ID
+        sync: false       # Set in Render dashboard
