@@ -4,6 +4,9 @@ djangorestframework>=3.15,<4.0
 djangorestframework-simplejwt>=5.3,<6.0
 django-filter>=24.0,<25.0
 
+# ─── Package Tools (required by razorpay) ───────────────────────────────────────
+setuptools>=65.0
+
 # ─── Database ─────────────────────────────────────────────────────────────────
 # psycopg2-binary: PostgreSQL adapter (used on Render / production)
 psycopg2-binary>=2.9,<3.0
