@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npx vite build)",
-      "Bash(cd:*)",
-      "Bash(npm install:*)"
-    ]
-  }
-}

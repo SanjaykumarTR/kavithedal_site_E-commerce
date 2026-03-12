@@ -1,1 +1,0 @@
-# Kavithedal Backend Config
