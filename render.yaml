@@ -27,7 +27,7 @@ services:
     runtime: python
     region: singapore
     plan: free           # Upgrade to starter for always-on service
-    rootDir: frontend/kavithedal_backend
+    rootDir: backend
     buildCommand: "./build.sh"
     startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info"
     healthCheckPath: /health/
