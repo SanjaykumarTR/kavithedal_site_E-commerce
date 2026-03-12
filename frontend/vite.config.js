@@ -37,15 +37,5 @@ export default defineConfig({
     sourcemap: false,
     // Chunk size warning threshold (kB)
     chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        // Split vendor libraries into separate chunks for better caching
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          swiper: ['swiper'],
-          axios: ['axios'],
-        },
-      },
-    },
   },
 })
