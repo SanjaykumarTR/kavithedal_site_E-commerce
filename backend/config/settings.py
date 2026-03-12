@@ -327,3 +327,7 @@ if _cloudinary_configured:
     MEDIA_URL = 'https://res.cloudinary.com/{}/'.format(
         os.environ.get('CLOUDINARY_CLOUD_NAME')
     )
+CORS_ALLOWED_ORIGINS = [
+    
+    "https://kavithedal-website-1gc7.onrender.com/"
+]
