@@ -101,6 +101,7 @@ class BookListSerializer(serializers.ModelSerializer):
             'id', 'title', 'author', 'author_name', 'price', 'discount_percentage', 'discounted_price',
             'ebook_price', 'ebook_final_price',
             'physical_price', 'physical_final_price',
+            'book_type', 'stock',
             'category_name', 'cover_image', 'has_pdf', 'published_date', 'is_featured'
         ]
     

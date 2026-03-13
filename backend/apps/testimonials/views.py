@@ -1,6 +1,7 @@
 """
 Views for Testimonials App.
 """
+import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,6 +9,8 @@ from django.db import models
 from django_filters import rest_framework as filters
 from django.core.mail import send_mail
 from django.conf import settings
+
+logger = logging.getLogger('apps')
 
 from .models import Testimonial
 from .serializers import TestimonialSerializer, TestimonialListSerializer, TestimonialCreateSerializer
@@ -115,7 +118,7 @@ Please login to the admin panel to review and approve/reject this testimonial.
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Error sending email: {e}")
+            logger.error('Failed to send testimonial notification email: %s', e)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAdminOrReadOnly])
     def approve(self, request, pk=None):
