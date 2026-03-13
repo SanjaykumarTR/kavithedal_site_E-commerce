@@ -93,8 +93,9 @@ services:
         sync: false       # Set in Render dashboard
 
   # ── React Frontend (Static Site) ──────────────────────────────────────────
-  - type: static
+  - type: web
     name: kavithedal-frontend
+    runtime: static
     region: singapore
     rootDir: frontend
     buildCommand: "npm install && npm run build"
