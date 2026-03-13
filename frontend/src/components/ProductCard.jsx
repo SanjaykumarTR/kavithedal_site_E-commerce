@@ -106,7 +106,14 @@ export default function ProductCard({ book, showBothPrices = false }) {
           <div className="discount-badge">-{book.discount_percentage}%</div>
         )}
 
-        <img src={book.image} alt={book.title} />
+        <img
+          src={book.image}
+          alt={book.title}
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&h=300&fit=crop";
+          }}
+        />
 
         <div className="product-info">
           <h4>{book.title}</h4>

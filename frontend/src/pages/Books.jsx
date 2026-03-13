@@ -13,7 +13,7 @@ export default function Books() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [maxPrice, setMaxPrice] = useState(2000);
-  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [search] = useState(searchParams.get("search") || "");
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.get("category") || "all"
   );
@@ -57,7 +57,9 @@ export default function Books() {
       oldPrice: originalPrice,
       discount: discountPercent,
       rating: 4.5,
-      image: book.cover_image || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&h=300&fit=crop",
+      image: book.cover_image
+        ? (book.cover_image.startsWith("http") ? book.cover_image : `${import.meta.env.VITE_API_URL || ""}${book.cover_image}`)
+        : "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&h=300&fit=crop",
       category: book.category_name || "Uncategorized",
       ebook_price: ebookPrice,
       physical_price: physicalPrice,
