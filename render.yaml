@@ -105,7 +105,11 @@ services:
     rootDir: frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
-    # _redirects file in public/ handles SPA client-side routing
+    # SPA routing — all paths serve index.html so React Router handles them
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     headers:
       - path: "/*"
         name: Cache-Control
