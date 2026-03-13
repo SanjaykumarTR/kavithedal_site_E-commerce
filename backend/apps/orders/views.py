@@ -624,42 +624,20 @@ class EbookPurchaseView(APIView):
             payment_status='initiated'
         )
         
-        # In production, you would create a Razorpay order here
-        # For now, we'll simulate the payment
-        from django.conf import settings
-        
-        # Check if Razorpay is configured
-        razorpay_configured = (
-            hasattr(settings, 'RAZORPAY_KEY_ID') and 
-            settings.RAZORPAY_KEY_ID and
-            hasattr(settings, 'RAZORPAY_KEY_SECRET') and
-            settings.RAZORPAY_KEY_SECRET
-        )
-        
-        if razorpay_configured:
+        if _razorpay_configured():
             try:
-                import razorpay
-                
-                # Initialize Razorpay client
-                client = razorpay.Client(
-                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-                )
-                
-                # Create Razorpay order
+                client = _get_razorpay_client()
                 razorpay_order = client.order.create({
-                    'amount': int(float(unit_price) * 100),  # Amount in paise
+                    'amount': int(float(unit_price) * 100),
                     'currency': 'INR',
                     'receipt': str(purchase.id),
                     'notes': {
                         'book_title': book.title,
-                        'user_email': email
+                        'user_email': email,
                     }
                 })
-                
-                # Update purchase with Razorpay order ID
                 purchase.razorpay_order_id = razorpay_order['id']
                 purchase.save()
-                
                 return Response({
                     'purchase_id': str(purchase.id),
                     'razorpay_order_id': razorpay_order['id'],
@@ -667,13 +645,17 @@ class EbookPurchaseView(APIView):
                     'currency': 'INR',
                     'razorpay_key_id': settings.RAZORPAY_KEY_ID,
                     'book_title': book.title,
-                    'book_cover': book.cover_image.url if book.cover_image else None
+                    'book_cover': book.cover_image.url if book.cover_image else None,
                 })
-                
             except Exception as e:
-                pass  # Fall through to simulated payment
-        
-        # Simulated payment (when Razorpay is not configured)
+                logger.error('Razorpay order creation failed for purchase %s: %s', purchase.id, e)
+                purchase.delete()
+                return Response(
+                    {'error': 'Payment gateway error. Please try again.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+        # Simulation mode — only when Razorpay is NOT configured (local dev)
         try:
             purchase.payment_status = 'completed'
             purchase.transaction_id = f'test_txn_{purchase.id}'
@@ -735,7 +717,7 @@ This is an automated notification from Kavithedal Publications.
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Failed to send admin email: {e}")
+            logger.error('Failed to send admin email for purchase %s: %s', purchase.id, e)
 
 
 class VerifyEbookPaymentView(APIView):
@@ -838,7 +820,7 @@ This is an automated notification from Kavithedal Publications.
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Failed to send admin email: {e}")
+            logger.error('Failed to send admin email for purchase %s: %s', purchase.id, e)
         
         return Response({
             'status': 'Payment successful',
@@ -856,9 +838,15 @@ class CartCheckoutView(APIView):
     
     def post(self, request):
         """Create a Razorpay order for cart items."""
+        if not _razorpay_configured():
+            return Response(
+                {'error': 'Payment gateway is not configured. Contact support.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         items = request.data.get('items', [])
         total_amount = request.data.get('total_amount', 0)
-        
+
         if not items:
             return Response(
                 {'error': 'No items in cart'},
@@ -879,12 +867,7 @@ class CartCheckoutView(APIView):
         receipt_id = f'receipt_{uuid.uuid4().hex[:12]}'
         
         try:
-            # Initialize Razorpay client
-            client = razorpay.Client(
-                auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-            )
-            
-            # Create Razorpay order
+            client = _get_razorpay_client()
             razorpay_order = client.order.create({
                 'amount': amount_in_paise,
                 'currency': 'INR',

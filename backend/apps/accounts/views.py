@@ -24,7 +24,7 @@ from .models import AdminUser, AdminOTP
 from .serializers import (
     AdminUserSerializer, AdminUserCreateSerializer,
     LoginSerializer, PasswordChangeSerializer,
-    RegisterSerializer
+    RegisterSerializer, ProfileUpdateSerializer,
 )
 from .permissions import IsAdminUser
 from .utils import _get_admin_allowed_email
@@ -280,13 +280,22 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
-        """
-        GET /api/users/me/
-        Get current user info.
-        """
+        """GET /api/users/me/ — Current user profile."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
-    
+
+    @action(detail=False, methods=['put', 'patch'], permission_classes=[IsAuthenticated])
+    def update_me(self, request):
+        """PUT/PATCH /api/users/update_me/ — Update own profile (name, phone, photo)."""
+        serializer = ProfileUpdateSerializer(
+            request.user,
+            data=request.data,
+            partial=(request.method == 'PATCH'),
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AdminUserSerializer(request.user).data)
+
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def change_password(self, request):
         """

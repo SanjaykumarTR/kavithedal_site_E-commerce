@@ -32,19 +32,32 @@ class BookViewSet(viewsets.ModelViewSet):
         return BookSerializer
     
     def get_queryset(self):
-        # Show all books (including inactive) for now to debug
-        queryset = Book.objects.all()
-        
+        from apps.accounts.utils import is_authorized_admin
+        queryset = Book.objects.select_related('author', 'category').all()
+
+        # Admins see all books; regular users see only active ones
+        if not is_authorized_admin(self.request.user):
+            queryset = queryset.filter(is_active=True)
+
         # Filter by category
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__name=category)
-        
+
         # Filter by featured
         featured = self.request.query_params.get('featured')
         if featured:
             queryset = queryset.filter(is_featured=True)
-        
+
+        # Search by title or author name
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(author__name__icontains=search)
+            )
+
         return queryset
 
 

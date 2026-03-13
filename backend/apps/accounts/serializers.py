@@ -144,3 +144,13 @@ class OTPVerifySerializer(serializers.Serializer):
     """
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6, min_length=6)
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating own profile (first_name, last_name, phone).
+    Email and role changes are not allowed through this endpoint.
+    """
+    class Meta:
+        model = AdminUser
+        fields = ['first_name', 'last_name', 'phone', 'profile_image']
