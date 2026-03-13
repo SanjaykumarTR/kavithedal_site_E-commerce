@@ -33,8 +33,11 @@ urlpatterns = [
     path('api/books/<uuid:book_id>/check-access/', views.check_pdf_access, name='check-pdf-access'),
 ]
 
-# Serve media files in development only.
-# In production, media should be served via Cloudinary or a CDN.
-# WhiteNoise handles only STATIC files — not MEDIA files.
-if settings.DEBUG:
+# Serve media files:
+#   - Always in development (DEBUG=True)
+#   - In production ONLY when Cloudinary is not configured (local disk storage fallback)
+#     Cloudinary serves its own files via CDN — no local route needed in that case.
+# WhiteNoise handles only STATIC files, not MEDIA files.
+_using_cloudinary = getattr(settings, 'DEFAULT_FILE_STORAGE', '').startswith('cloudinary')
+if settings.DEBUG or not _using_cloudinary:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

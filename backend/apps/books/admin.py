@@ -1,9 +1,12 @@
 """
 Admin configuration for Books app — with image previews and Cloudinary support.
 """
-from django.contrib import admin
+import logging
+from django.contrib import admin, messages
 from django.utils.html import mark_safe
 from .models import Book, Category, BookSubmission, ContactMessage
+
+logger = logging.getLogger('apps')
 
 
 @admin.register(Book)
@@ -49,6 +52,26 @@ class BookAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        """Catch storage errors (e.g. Cloudinary upload failure) so the admin
+        doesn't show a blank 500 page — shows a warning instead."""
+        try:
+            super().save_model(request, obj, form, change)
+        except Exception as exc:
+            logger.error(
+                'BookAdmin save_model failed for "%s": %s', obj.title, exc, exc_info=True
+            )
+            messages.error(
+                request,
+                f'Failed to save book file (cover/PDF): {exc}  '
+                'If you are using Cloudinary, verify that CLOUDINARY_CLOUD_NAME, '
+                'CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET are correct in Render '
+                'environment variables. To use local storage instead, remove all '
+                'CLOUDINARY_* variables.'
+            )
+            # Re-raise so Django admin does not show a success message
+            raise
 
     def cover_preview(self, obj):
         if obj.cover_image:
