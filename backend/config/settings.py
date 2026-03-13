@@ -254,6 +254,19 @@ CORS_ALLOW_HEADERS = [
 ]
 
 
+# ─── CSRF Trusted Origins ─────────────────────────────────────────────────────
+# Django 4.0+ requires CSRF_TRUSTED_ORIGINS for POST requests behind a proxy.
+# Render terminates SSL at the load balancer, so the Origin header must be trusted.
+_csrf_origins = []
+if RENDER_EXTERNAL_HOSTNAME:
+    _csrf_origins.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
+for _h in ALLOWED_HOSTS:
+    if _h not in ('localhost', '127.0.0.1', '*') and f'https://{_h}' not in _csrf_origins:
+        _csrf_origins.append(f'https://{_h}')
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS = _csrf_origins
+
+
 # ─── Production Security Headers ──────────────────────────────────────────────
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
