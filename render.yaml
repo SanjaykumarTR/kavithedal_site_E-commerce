@@ -96,7 +96,6 @@ services:
   - type: web
     name: kavithedal-frontend
     runtime: static
-    region: singapore
     rootDir: frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
