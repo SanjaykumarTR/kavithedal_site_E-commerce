@@ -21,4 +21,13 @@ python manage.py collectstatic --no-input
 echo "─── Running database migrations ──────────────────────────────────────────"
 python manage.py migrate --no-input
 
+echo "─── Creating superuser (skipped if already exists) ──────────────────────"
+# Set DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_PASSWORD
+# as environment variables in Render dashboard to auto-create admin on first deploy.
+if [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+    python manage.py createsuperuser --no-input || echo "Superuser already exists, skipping."
+else
+    echo "DJANGO_SUPERUSER_EMAIL or DJANGO_SUPERUSER_PASSWORD not set — skipping superuser creation."
+fi
+
 echo "─── Build complete ───────────────────────────────────────────────────────"
