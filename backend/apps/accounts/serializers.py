@@ -53,31 +53,52 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.ModelSerializer):
     """
     Serializer for user registration.
+    Username is auto-generated from email — clients do not need to send it.
     """
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
-    
+    # username is accepted but optional — we sanitize/auto-generate server-side
+    username = serializers.CharField(required=False, allow_blank=True, default='')
+
     class Meta:
         model = AdminUser
         fields = ['email', 'username', 'password', 'confirm_password']
-    
+
+    def validate_email(self, value):
+        if AdminUser.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value.lower()
+
     def validate(self, data):
         if data['password'] != data['confirm_password']:
-            raise serializers.ValidationError("Passwords do not match")
-        
-        # Check if email already exists
-        if AdminUser.objects.filter(email=data['email']).exists():
-            raise serializers.ValidationError("Email already registered")
-        
+            raise serializers.ValidationError("Passwords do not match.")
         return data
-    
+
+    @staticmethod
+    def _make_unique_username(base):
+        """Derive a unique username from a base string."""
+        import re
+        # Keep only word chars, dots, @, +, -, underscores (Django allows these)
+        clean = re.sub(r'[^\w.@+\-]', '_', base).strip('_') or 'user'
+        clean = clean[:140]  # Leave room for numeric suffix
+        candidate = clean
+        counter = 1
+        while AdminUser.objects.filter(username=candidate).exists():
+            candidate = f"{clean}{counter}"
+            counter += 1
+        return candidate
+
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        raw_username = validated_data.pop('username', '') or ''
+        # Prefer the supplied username; fall back to email prefix
+        base = raw_username.strip() or validated_data['email'].split('@')[0]
+        username = self._make_unique_username(base)
         user = AdminUser.objects.create_user(
-            username=validated_data['username'],
+            username=username,
             email=validated_data['email'],
             password=validated_data['password'],
-            role='user'  # Default role for new users
+            role='user',
         )
         return user
 

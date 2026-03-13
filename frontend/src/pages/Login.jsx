@@ -100,13 +100,23 @@ export default function Login() {
     } catch (err) {
       console.error('Login/Register error:', err);
       console.error('Error response:', err.response?.data);
-      const msg =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        err.response?.data?.non_field_errors?.[0] ||
-        err.response?.data?.email?.[0] ||
-        err.response?.data?.password?.[0] ||
-        (language === "en" ? "Invalid credentials. Please try again." : "தவறான நற்சான்றிதழ்கள். மீண்டும் முயற்சிக்கவும்.");
+      let msg;
+      if (!err.response) {
+        // Network error or CORS — server unreachable
+        msg = language === "en"
+          ? "Cannot connect to server. Please try again."
+          : "சேவையகத்துடன் இணைக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.";
+      } else {
+        const d = err.response.data;
+        msg =
+          d?.detail ||
+          d?.message ||
+          d?.non_field_errors?.[0] ||
+          d?.email?.[0] ||
+          d?.password?.[0] ||
+          d?.username?.[0] ||
+          (language === "en" ? "Invalid credentials. Please try again." : "தவறான நற்சான்றிதழ்கள். மீண்டும் முயற்சிக்கவும்.");
+      }
       setError(msg);
     } finally {
       setLoading(false);
