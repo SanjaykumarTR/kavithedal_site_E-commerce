@@ -1,0 +1,314 @@
+/* ===== CONTESTS PAGE ===== */
+.contests-page {
+  min-height: 100vh;
+  background: #faf8f5;
+}
+
+/* ===== HERO ===== */
+.contests-hero {
+  background: linear-gradient(135deg, #1A237E 0%, #B71C1C 100%);
+  padding: 70px 20px 50px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.contests-hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 220px; height: 220px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 50%;
+}
+.contests-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40px; left: -40px;
+  width: 160px; height: 160px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 50%;
+}
+.contests-hero h1 {
+  color: #fff;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  position: relative;
+}
+.contests-hero p {
+  color: rgba(255,255,255,0.88);
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ===== TABS ===== */
+.contests-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 20px 0;
+}
+.tab-btn {
+  padding: 10px 24px;
+  border-radius: 25px;
+  border: 2px solid #ddd;
+  background: #fff;
+  color: #555;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+.tab-btn.active {
+  border-color: #1A237E;
+  background: #1A237E;
+  color: #fff;
+}
+.tab-btn:hover:not(.active) {
+  border-color: #1A237E;
+  color: #1A237E;
+}
+
+/* ===== GRID ===== */
+.contests-section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+.contests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 28px;
+}
+
+/* ===== CONTEST CARD ===== */
+.contest-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 18px rgba(0,0,0,0.08);
+  overflow: hidden;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+  display: flex;
+  flex-direction: column;
+}
+.contest-card:hover {
+  transform: translateY(-8px) scale(1.01);
+  box-shadow: 0 14px 40px rgba(26,35,126,0.16);
+}
+
+/* Banner */
+.contest-banner {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #E8EAF6, #FCE4EC);
+  position: relative;
+}
+.contest-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.contest-card:hover .contest-banner img {
+  transform: scale(1.06);
+}
+.contest-banner-placeholder {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, #1A237E 0%, #B71C1C 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+}
+
+/* Content */
+.contest-content {
+  padding: 22px 24px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.contest-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.status-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-badge.active {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+.status-badge.expired {
+  background: #FFEBEE;
+  color: #C62828;
+}
+.status-badge.inactive {
+  background: #F5F5F5;
+  color: #757575;
+}
+.contest-deadline-chip {
+  font-size: 0.8rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.contest-deadline-chip.expired {
+  color: #C62828;
+}
+
+.contest-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 10px;
+  line-height: 1.35;
+}
+.contest-description {
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.65;
+  margin-bottom: 16px;
+  flex: 1;
+  /* clamp to 3 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Prize & Rules */
+.contest-info-block {
+  background: #f7f8ff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.contest-info-block h4 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1A237E;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 6px;
+}
+.contest-info-block p {
+  font-size: 0.88rem;
+  color: #444;
+  margin: 0;
+  line-height: 1.5;
+}
+.rules-list {
+  margin: 0;
+  padding-left: 16px;
+}
+.rules-list li {
+  font-size: 0.86rem;
+  color: #555;
+  margin-bottom: 3px;
+  line-height: 1.5;
+}
+
+/* CTA */
+.contest-cta {
+  margin-top: 16px;
+}
+.participate-btn {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  background: linear-gradient(135deg, #1A237E, #B71C1C);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.participate-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* ===== HOME PREVIEW SECTION ===== */
+.home-contests-section {
+  background: linear-gradient(135deg, #E8EAF6 0%, #FFF8F8 100%);
+  padding: 60px 20px;
+}
+.home-contests-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.home-contests-section .section-heading {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.home-contests-section .section-heading h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 8px;
+}
+.home-contests-section .section-heading p {
+  color: #666;
+  font-size: 1rem;
+}
+.home-contests-section .section-heading .underline {
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(135deg, #1A237E, #B71C1C);
+  margin: 12px auto 0;
+  border-radius: 2px;
+}
+.home-contests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+.view-all-contests {
+  text-align: center;
+  margin-top: 32px;
+}
+.view-all-contests a {
+  display: inline-block;
+  padding: 11px 28px;
+  border: 2px solid #1A237E;
+  color: #1A237E;
+  border-radius: 25px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+.view-all-contests a:hover {
+  background: #1A237E;
+  color: #fff;
+}
+
+/* ===== LOADING / EMPTY ===== */
+.contests-loading,
+.contests-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #888;
+  font-size: 1.05rem;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .contests-hero h1 { font-size: 1.8rem; }
+  .contests-grid { grid-template-columns: 1fr; }
+  .home-contests-grid { grid-template-columns: 1fr; }
+  .home-contests-section { padding: 40px 16px; }
+}

@@ -15,6 +15,7 @@ class Contest(models.Model):
     prize_details = models.TextField(blank=True)
     rules = models.TextField()
     banner_image = models.ImageField(upload_to='contests/banners/', blank=True, null=True)
+    start_date = models.DateTimeField(blank=True, null=True, help_text="Contest start date (optional)")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -2,17 +2,15 @@ import { useState, useEffect, useContext } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import { LanguageContext } from "../context/LanguageContext";
-import "../styles/blog.css";
+import "../styles/contests.css";
 
 export default function Contests() {
   const { language } = useContext(LanguageContext);
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("active");
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-  // Translations
-  const translations = {
+  const t = {
     en: {
       heroTitle: "Writing Contests",
       heroSubtitle: "Participate in our writing competitions and showcase your talent",
@@ -22,18 +20,12 @@ export default function Contests() {
       noContests: "No contests available at the moment. Check back soon!",
       prizes: "Prizes",
       rules: "Rules",
-      registerNow: "Register Now",
-      deadline: "Deadline:",
+      registerNow: "Participate Now →",
+      deadline: "Deadline",
+      startDate: "Starts",
       expired: "Expired",
       active: "Active",
       inactive: "Inactive",
-      introTitle: "Showcase Your Writing Talent",
-      introText: "Join our exciting writing competitions and get a chance to have your work published. Whether you're a seasoned writer or just starting, we have contests for all levels.",
-      benefitsTitle: "Why Participate?",
-      benefit1: "Get published by Kavithedal Publications",
-      benefit2: "Win exciting cash prizes and awards",
-      benefit3: "Get featured in our newsletter",
-      benefit4: "Connect with other writers",
     },
     ta: {
       heroTitle: "எழுத்துப் போட்டிகள்",
@@ -44,150 +36,130 @@ export default function Contests() {
       noContests: "தற்போது போட்டிகள் இல்லை. விரைவில் மீண்டும் வருக!",
       prizes: "பரிசுகள்",
       rules: "விதிகள்",
-      registerNow: "இப்போது பதிவு செய்",
-      deadline: "கடைசி தேதி:",
+      registerNow: "பங்கேற்க →",
+      deadline: "கடைசி தேதி",
+      startDate: "தொடங்கும் தேதி",
       expired: "காலாவதியான",
       active: "சுறுசுறுப்பான",
-      inactive: "சுமதுர",
-      introTitle: "உங்கள் எழுத்துத் திறமையைக் காட்டுங்கள்",
-      introText: "எங்கள் சுவாரசியமான எழுத்துப் போட்டிகளில் பங்கேற்று உங்கள் படைப்பை வெளியிட வாய்ப்பு பெறுங்கள். நீங்கள் அனுபவமுள்ள எழுத்தாளராக இருந்தாலும் சரி, புதிதாகத் தொடங்குகிறீர்களா இருந்தாலும் சரி, எல்லா நிலைகளுக்கும் போட்டிகள் உள்ளன.",
-      benefitsTitle: "ஏன் பங்கேற்க வேண்டும்?",
-      benefit1: "கவித்திடல் பதிப்பகத்தால் வெளியிடப்படுங்கள்",
-      benefit2: "ரொக்க பரிசுகள் மற்றும் விருதுகள் வெல்லுங்கள்",
-      benefit3: "எங்கள் நியூஸ்லெட்டரில் இடம்பெறுங்கள்",
-      benefit4: "மற்ற எழுத்தாளர்களுடன் இணையுங்கள்",
+      inactive: "செயலற்றது",
     },
-  };
-
-  const t = translations[language];
+  }[language];
 
   useEffect(() => {
-    fetchContests();
+    setLoading(true);
+    const endpoint = activeTab === "active" ? "/api/contests/active/" : "/api/contests/";
+    api.get(endpoint)
+      .then((res) => setContests(res.data.results || res.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [activeTab]);
 
-  const fetchContests = async () => {
-    setLoading(true);
-    try {
-      const endpoint = activeTab === "active" ? "/api/contests/active/" : "/api/contests/";
-      const res = await api.get(endpoint);
-      setContests(res.data.results || res.data);
-    } catch (error) {
-      console.error("Failed to fetch contests:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(language === "ta" ? "ta-IN" : "en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString(
+      language === "ta" ? "ta-IN" : "en-US",
+      { year: "numeric", month: "short", day: "numeric" }
+    );
   };
 
-  const isExpired = (deadline) => {
-    return new Date(deadline) < new Date();
+  const isExpired = (deadline) => new Date(deadline) < new Date();
+
+  const statusBadge = (contest) => {
+    if (isExpired(contest.deadline)) return <span className="status-badge expired">{t.expired}</span>;
+    if (contest.is_active) return <span className="status-badge active">{t.active}</span>;
+    return <span className="status-badge inactive">{t.inactive}</span>;
+  };
+
+  const parseRules = (rules) => {
+    if (!rules) return [];
+    return rules.split("\n").filter((r) => r.trim());
   };
 
   return (
     <div className="contests-page">
-      
-      <div className="blog-hero contests-hero">
+
+      {/* Hero */}
+      <div className="contests-hero">
         <h1>{t.heroTitle}</h1>
         <p>{t.heroSubtitle}</p>
       </div>
 
-      <div className="blog-content">
-        {/* Intro Section */}
-        <div className="contests-intro">
-          <h2>{t.introTitle}</h2>
-          <p>{t.introText}</p>
-          <ul className="benefits-list">
-            <li>{t.benefit1}</li>
-            <li>{t.benefit2}</li>
-            <li>{t.benefit3}</li>
-            <li>{t.benefit4}</li>
-          </ul>
-        </div>
+      {/* Tabs */}
+      <div className="contests-tabs">
+        <button
+          className={`tab-btn ${activeTab === "active" ? "active" : ""}`}
+          onClick={() => setActiveTab("active")}
+        >
+          {t.activeContests}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "all" ? "active" : ""}`}
+          onClick={() => setActiveTab("all")}
+        >
+          {t.allContests}
+        </button>
+      </div>
 
-        <div className="contests-tabs">
-          <button 
-            className={`tab-btn ${activeTab === "active" ? "active" : ""}`}
-            onClick={() => setActiveTab("active")}
-          >
-            {t.activeContests}
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === "all" ? "active" : ""}`}
-            onClick={() => setActiveTab("all")}
-          >
-            {t.allContests}
-          </button>
-        </div>
-
+      {/* Content */}
+      <div className="contests-section">
         {loading ? (
-          <div className="loading">{t.loading}</div>
+          <div className="contests-loading">{t.loading}</div>
         ) : contests.length === 0 ? (
-          <div className="empty-state">
-            <p>{t.noContests}</p>
-          </div>
+          <div className="contests-empty">{t.noContests}</div>
         ) : (
           <div className="contests-grid">
             {contests.map((contest) => (
               <div key={contest.id} className="contest-card">
-                {contest.banner_image && (
+
+                {/* Banner */}
+                {contest.banner_url ? (
                   <div className="contest-banner">
-                    <img 
-                      src={contest.banner_image.startsWith('http') ? contest.banner_image : `${API_BASE}${contest.banner_image}`} 
+                    <img
+                      src={contest.banner_url}
                       alt={contest.title}
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                      }}
+                      onError={(e) => { e.target.parentElement.innerHTML = '<div class="contest-banner-placeholder">🏆</div>'; }}
                     />
                   </div>
+                ) : (
+                  <div className="contest-banner-placeholder">🏆</div>
                 )}
+
+                {/* Body */}
                 <div className="contest-content">
-                  <div className="contest-status">
-                    {isExpired(contest.deadline) ? (
-                      <span className="status expired">{t.expired}</span>
-                    ) : contest.is_active ? (
-                      <span className="status active">{t.active}</span>
-                    ) : (
-                      <span className="status inactive">{t.inactive}</span>
-                    )}
+                  <div className="contest-status-row">
+                    {statusBadge(contest)}
+                    <span className={`contest-deadline-chip ${isExpired(contest.deadline) ? "expired" : ""}`}>
+                      📅 {formatDate(contest.deadline)}
+                    </span>
                   </div>
-                  <h3>{contest.title}</h3>
+
+                  <h3 className="contest-title">{contest.title}</h3>
                   <p className="contest-description">{contest.description}</p>
-                  
-                  <div className="contest-details">
-                    <div className="detail-item">
-                      <span className="detail-label">📅 {t.deadline}</span>
-                      <span className={`detail-value ${isExpired(contest.deadline) ? "expired" : ""}`}>
-                        {formatDate(contest.deadline)}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="contest-prizes">
-                    <h4>{t.prizes}</h4>
-                    <p>{contest.prize_details}</p>
-                  </div>
-
-                  <div className="contest-rules">
-                    <h4>{t.rules}</h4>
-                    <div className="rules-content">
-                      {contest.rules.split('\n').map((rule, index) => (
-                        <p key={index}>{rule}</p>
-                      ))}
+                  {contest.prize_details && (
+                    <div className="contest-info-block">
+                      <h4>🏅 {t.prizes}</h4>
+                      <p>{contest.prize_details}</p>
                     </div>
-                  </div>
+                  )}
+
+                  {contest.rules && (
+                    <div className="contest-info-block">
+                      <h4>📋 {t.rules}</h4>
+                      <ul className="rules-list">
+                        {parseRules(contest.rules).slice(0, 4).map((rule, i) => (
+                          <li key={i}>{rule}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {!isExpired(contest.deadline) && contest.is_active && (
-                    <Link to={`/contest/${contest.id}/submit`} className="participate-btn">
-                      {t.registerNow}
-                    </Link>
+                    <div className="contest-cta">
+                      <Link to={`/contest/${contest.id}/submit`} className="participate-btn">
+                        {t.registerNow}
+                      </Link>
+                    </div>
                   )}
                 </div>
               </div>

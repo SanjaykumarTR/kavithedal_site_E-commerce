@@ -39,6 +39,7 @@ class Testimonial(models.Model):
     video_type = models.CharField(max_length=20, choices=VIDEO_TYPE_CHOICES, default='none', blank=True)
     video_url = models.URLField(max_length=500, blank=True, help_text="YouTube/Vimeo URL or MP4 video URL")
     video_file = models.FileField(upload_to='testimonials/videos/', blank=True, null=True, help_text="Upload MP4 video file")
+    photo = models.ImageField(upload_to='testimonials/photos/', blank=True, null=True, help_text="Profile photo of the reviewer")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

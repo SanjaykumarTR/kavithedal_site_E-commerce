@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import PromoSection from "../components/PromoSection";
@@ -7,6 +7,8 @@ import ProductCard from "../components/ProductCard";
 import api from "../api/axios";
 import { mediaUrl } from "../utils/mediaUrl";
 import "../styles/home.css";
+import "../styles/testimonials.css";
+import "../styles/contests.css";
 
 
 export default function Home() {
@@ -148,6 +150,56 @@ export default function Home() {
     }, 3500);
 
     return () => clearInterval(interval);
+  }, []);
+
+  /* ===============================
+     TESTIMONIALS
+  ================================ */
+  const [testimonials, setTestimonials] = useState([]);
+  const [testiIndex, setTestiIndex] = useState(0);
+  const testiTrackRef = useRef(null);
+  const testiAutoRef = useRef(null);
+
+  useEffect(() => {
+    api.get("/api/testimonials/")
+      .then((res) => setTestimonials((res.data.results || res.data).slice(0, 9)))
+      .catch(() => {});
+  }, []);
+
+  const TESTI_VISIBLE = 3;
+  const testiMax = Math.max(0, testimonials.length - TESTI_VISIBLE);
+
+  useEffect(() => {
+    if (testimonials.length > TESTI_VISIBLE) {
+      testiAutoRef.current = setInterval(() => {
+        setTestiIndex((p) => (p >= testiMax ? 0 : p + 1));
+      }, 4000);
+    }
+    return () => clearInterval(testiAutoRef.current);
+  }, [testimonials.length, testiMax]);
+
+  useEffect(() => {
+    if (testiTrackRef.current) {
+      testiTrackRef.current.style.transform = `translateX(-${testiIndex * 324}px)`;
+    }
+  }, [testiIndex]);
+
+  const testiPrev = () => {
+    setTestiIndex((p) => (p <= 0 ? testiMax : p - 1));
+  };
+  const testiNext = () => {
+    setTestiIndex((p) => (p >= testiMax ? 0 : p + 1));
+  };
+
+  /* ===============================
+     CONTESTS PREVIEW
+  ================================ */
+  const [homeContests, setHomeContests] = useState([]);
+
+  useEffect(() => {
+    api.get("/api/contests/active/")
+      .then((res) => setHomeContests((res.data.results || res.data).slice(0, 3)))
+      .catch(() => {});
   }, []);
 
   // Show loading state
@@ -319,6 +371,137 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ================= TESTIMONIALS SECTION ================= */}
+      {testimonials.length > 0 && (
+        <section className="home-testimonials-section">
+          <div className="home-testimonials-inner">
+            <div className="section-heading">
+              <h2>{language === "en" ? "What Readers Say" : "வாசகர்கள் சொல்வது"}</h2>
+              <p>{language === "en" ? "Trusted by book lovers across Tamil Nadu" : "தமிழ்நாடு முழுவதும் புத்தகக் காதலர்கள் நம்புகிறார்கள்"}</p>
+              <div className="underline" />
+            </div>
+
+            <div className="carousel-wrapper">
+              <div className="home-testimonials-track carousel-track" ref={testiTrackRef}>
+                {testimonials.map((item) => (
+                  <div key={item.id} className="testimonial-card">
+                    <div className="testimonial-header">
+                      {item.photo_url ? (
+                        <img
+                          src={item.photo_url}
+                          alt={item.name}
+                          className="testimonial-avatar"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            const sib = e.target.nextElementSibling;
+                            if (sib) sib.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="testimonial-avatar-initial"
+                        style={{ display: item.photo_url ? "none" : "flex" }}
+                      >
+                        {item.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="testimonial-info">
+                        <h4>{item.name}</h4>
+                        <span className="testimonial-role">
+                          {item.role === "author"
+                            ? (language === "ta" ? "எழுத்தாளர்" : "Author")
+                            : (language === "ta" ? "வாசகர்" : "Reader")}
+                        </span>
+                      </div>
+                      <div className="testimonial-rating">{"⭐".repeat(item.rating)}</div>
+                    </div>
+                    <p className="testimonial-message">{item.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {testimonials.length > TESTI_VISIBLE && (
+              <div className="carousel-controls">
+                <button className="carousel-btn" onClick={testiPrev}>‹</button>
+                <div className="carousel-dots">
+                  {Array.from({ length: testiMax + 1 }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={`carousel-dot ${i === testiIndex ? "active" : ""}`}
+                      onClick={() => setTestiIndex(i)}
+                    />
+                  ))}
+                </div>
+                <button className="carousel-btn" onClick={testiNext}>›</button>
+              </div>
+            )}
+
+            <div className="view-all-testimonials">
+              <Link to="/testimonials">
+                {language === "en" ? "View All Reviews" : "அனைத்து மதிப்புரைகளையும் காண"}
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ================= CONTESTS PREVIEW SECTION ================= */}
+      {homeContests.length > 0 && (
+        <section className="home-contests-section">
+          <div className="home-contests-inner">
+            <div className="section-heading">
+              <h2>{language === "en" ? "Active Contests" : "சுறுசுறுப்பான போட்டிகள்"}</h2>
+              <p>{language === "en" ? "Showcase your writing talent and win prizes" : "உங்கள் எழுத்துத் திறமையை வெளிப்படுத்தி பரிசு வெல்லுங்கள்"}</p>
+              <div className="underline" />
+            </div>
+
+            <div className="home-contests-grid">
+              {homeContests.map((contest) => (
+                <div key={contest.id} className="contest-card">
+                  {contest.banner_url ? (
+                    <div className="contest-banner">
+                      <img
+                        src={contest.banner_url}
+                        alt={contest.title}
+                        onError={(e) => { e.target.parentElement.innerHTML = '<div class="contest-banner-placeholder">🏆</div>'; }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="contest-banner-placeholder">🏆</div>
+                  )}
+                  <div className="contest-content">
+                    <div className="contest-status-row">
+                      <span className="status-badge active">
+                        {language === "en" ? "Active" : "சுறுசுறுப்பான"}
+                      </span>
+                      <span className="contest-deadline-chip">
+                        📅 {new Date(contest.deadline).toLocaleDateString(
+                          language === "ta" ? "ta-IN" : "en-US",
+                          { month: "short", day: "numeric", year: "numeric" }
+                        )}
+                      </span>
+                    </div>
+                    <h3 className="contest-title">{contest.title}</h3>
+                    <p className="contest-description">{contest.description}</p>
+                    <div className="contest-cta">
+                      <Link to={`/contest/${contest.id}/submit`} className="participate-btn">
+                        {language === "en" ? "Participate Now →" : "பங்கேற்க →"}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="view-all-contests">
+              <Link to="/contests">
+                {language === "en" ? "View All Contests" : "அனைத்து போட்டிகளையும் காண"}
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
     </>
   );
 }
