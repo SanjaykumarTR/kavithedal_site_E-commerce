@@ -32,15 +32,24 @@ class AuthorAdmin(admin.ModelAdmin):
         }),
     )
 
+    def save_form(self, request, form, change):
+        """Intercept file-clear actions BEFORE form.save() calls storage.delete().
+
+        Django signals a file clear by setting cleaned_data['photo'] = False.
+        FileField.save_form_data() then calls storage.delete() which raises
+        exceptions with Cloudinary. Replace False with '' to skip deletion
+        while still clearing the field value in the database.
+        """
+        if form.cleaned_data.get('photo') is False:
+            form.cleaned_data['photo'] = ''
+        return super().save_form(request, form, change)
+
     def save_model(self, request, obj, form, change):
         """Save author, falling back to no photo if storage upload fails."""
-        photo_clearing = 'photo' in form.changed_data and form.cleaned_data.get('photo') is False
-
-        # Clearing a Cloudinary-backed field calls storage.delete() which can raise.
-        # Bypass it with a direct DB update.
-        if photo_clearing:
-            obj.photo = None
-            obj.__class__.objects.filter(pk=obj.pk).update(photo='')
+        photo_clearing = (
+            'photo' in form.changed_data and
+            form.cleaned_data.get('photo') == ''
+        )
 
         try:
             super().save_model(request, obj, form, change)
@@ -67,7 +76,11 @@ class AuthorAdmin(admin.ModelAdmin):
     def photo_preview(self, obj):
         if obj.photo:
             try:
-                url = obj.photo.url
+                from apps.books.serializers import _cloudinary_url
+                stored = obj.photo.name if obj.photo else None
+                url = _cloudinary_url(stored, 'image') if stored else None
+                if not url:
+                    url = obj.photo.url
             except Exception:
                 return '(no preview)'
             return mark_safe(

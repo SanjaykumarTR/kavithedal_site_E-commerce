@@ -78,26 +78,42 @@ class BookAdmin(admin.ModelAdmin):
             )
         return super().changelist_view(request, extra_context=extra_context)
 
-    def save_model(self, request, obj, form, change):
-        """Save the book, gracefully handling file-storage errors."""
-        image_changed = 'cover_image' in form.changed_data
-        pdf_changed = 'pdf_file' in form.changed_data
-        image_clearing = image_changed and form.cleaned_data.get('cover_image') is False
-        pdf_clearing = pdf_changed and form.cleaned_data.get('pdf_file') is False
-        image_uploading = image_changed and bool(form.cleaned_data.get('cover_image'))
-        pdf_uploading = pdf_changed and bool(form.cleaned_data.get('pdf_file'))
+    def save_form(self, request, form, change):
+        """Intercept file-clear actions BEFORE form.save() calls storage.delete().
 
-        # When clearing files, Cloudinary storage.delete() can raise exceptions.
-        # Use a direct DB update to clear the field safely, then save the rest.
-        if image_clearing:
-            obj.cover_image = None
-            obj.__class__.objects.filter(pk=obj.pk).update(cover_image='')
-        if pdf_clearing:
-            obj.pdf_file = None
-            obj.__class__.objects.filter(pk=obj.pk).update(pdf_file='')
+        Django signals a file clear by setting cleaned_data[field] = False.
+        FileField.save_form_data() then calls storage.delete() which raises
+        exceptions with Cloudinary. Replace False with '' to skip deletion
+        while still clearing the field value in the database.
+        """
+        file_fields = ('cover_image', 'pdf_file')
+        for field_name in file_fields:
+            if form.cleaned_data.get(field_name) is False:
+                form.cleaned_data[field_name] = ''
+        return super().save_form(request, form, change)
+
+    def save_model(self, request, obj, form, change):
+        """Save the book, gracefully handling file-storage errors on upload."""
+        image_uploading = (
+            'cover_image' in form.changed_data and
+            bool(form.cleaned_data.get('cover_image'))
+        )
+        pdf_uploading = (
+            'pdf_file' in form.changed_data and
+            bool(form.cleaned_data.get('pdf_file'))
+        )
+        image_clearing = (
+            'cover_image' in form.changed_data and
+            form.cleaned_data.get('cover_image') == ''
+        )
+        pdf_clearing = (
+            'pdf_file' in form.changed_data and
+            form.cleaned_data.get('pdf_file') == ''
+        )
 
         try:
             super().save_model(request, obj, form, change)
+
             if image_clearing:
                 messages.success(request, '✅ Cover image cleared successfully.')
             if pdf_clearing:
@@ -106,16 +122,18 @@ class BookAdmin(admin.ModelAdmin):
                 try:
                     from apps.books.serializers import _cloudinary_url
                     stored = obj.cover_image.name if obj.cover_image else None
-                    url = _cloudinary_url(stored, 'image') if stored else obj.cover_image.url
-                    messages.success(request, mark_safe(
-                        f'✅ Cover image uploaded successfully. '
-                        f'<a href="{url}" target="_blank">View on Cloudinary ↗</a>'
-                        if _cloudinary_active() else 'Cover image saved.'
-                    ))
+                    url = _cloudinary_url(stored, 'image') if stored else None
+                    if url:
+                        messages.success(request, mark_safe(
+                            f'✅ Cover image uploaded successfully. '
+                            f'<a href="{url}" target="_blank">View on Cloudinary ↗</a>'
+                            if _cloudinary_active() else '✅ Cover image saved.'
+                        ))
                 except Exception:
                     pass
             if pdf_uploading and obj.pdf_file:
                 messages.success(request, '✅ PDF uploaded successfully.')
+
         except Exception as exc:
             logger.error(
                 'BookAdmin save_model failed for "%s": %s', obj.title, exc, exc_info=True
@@ -142,14 +160,14 @@ class BookAdmin(admin.ModelAdmin):
 
     def cover_preview(self, obj):
         if obj.cover_image:
-            from apps.books.serializers import _cloudinary_url
-            stored = obj.cover_image.name if obj.cover_image else None
-            url = _cloudinary_url(stored, 'image') if stored else None
-            if not url:
-                try:
+            try:
+                from apps.books.serializers import _cloudinary_url
+                stored = obj.cover_image.name if obj.cover_image else None
+                url = _cloudinary_url(stored, 'image') if stored else None
+                if not url:
                     url = obj.cover_image.url
-                except Exception:
-                    return '(no preview)'
+            except Exception:
+                return '(no preview)'
             return mark_safe(
                 f'<img src="{url}" style="max-height:100px;max-width:100px;'
                 f'object-fit:cover;border-radius:4px;" />'
