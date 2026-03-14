@@ -110,8 +110,21 @@ export default function ProductCard({ book, showBothPrices = false }) {
           src={book.image}
           alt={book.title}
           onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&h=300&fit=crop";
+            const target = e.target;
+            const src = target.src;
+            // Try switching Cloudinary resource type before falling back to placeholder
+            if (src && src.includes('res.cloudinary.com') && !target.dataset.retried) {
+              target.dataset.retried = 'true';
+              if (src.includes('/raw/upload/')) {
+                target.src = src.replace('/raw/upload/', '/image/upload/');
+                return;
+              } else if (src.includes('/image/upload/')) {
+                target.src = src.replace('/image/upload/', '/raw/upload/');
+                return;
+              }
+            }
+            target.onerror = null;
+            target.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&h=300&fit=crop";
           }}
         />
 

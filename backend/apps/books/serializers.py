@@ -61,7 +61,7 @@ def _file_url(field_file, request=None, resource_type='image'):
         logger.warning('_file_url: .url raised %s for field %s; trying Cloudinary fallback', e, stored_name)
         return _cloudinary_url(stored_name, resource_type)
 
-    logger.debug('_file_url: stored=%s  url=%s', stored_name, url)
+    logger.info('_file_url: stored=%s  url=%s', stored_name, url)
 
     if url.startswith("http://") or url.startswith("https://"):
         return url                    # Cloudinary / any absolute URL — return as-is

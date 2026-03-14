@@ -4,6 +4,7 @@ Author Model for Kavithedal Publications.
 import uuid
 from django.db import models
 from apps.books.validators import validate_image_type, validate_image_size
+from apps.books.cloudinary_storage import ImageCloudinaryStorage
 
 
 class Author(models.Model):
@@ -15,6 +16,7 @@ class Author(models.Model):
     biography = models.TextField(blank=True)
     photo = models.ImageField(
         upload_to='authors/',
+        storage=ImageCloudinaryStorage(),
         blank=True,
         null=True,
         validators=[validate_image_type, validate_image_size],
