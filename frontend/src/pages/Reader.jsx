@@ -111,17 +111,19 @@ export default function Reader() {
       
       setBook(bookData);
       
-      // Fetch PDF with authentication
+      // Fetch the secure Cloudinary PDF URL from the backend
       try {
-        const pdfResponse = await api.get(`/api/books/${id}/pdf/`, {
-          responseType: 'blob'
-        });
-        const pdfBlob = new Blob([pdfResponse.data], { type: 'application/pdf' });
-        const pdfObjectUrl = URL.createObjectURL(pdfBlob);
-        setPdfUrl(pdfObjectUrl);
+        const pdfResponse = await api.get(`/api/books/${id}/pdf/`);
+        const url = pdfResponse.data.pdf_url;
+        if (!url) {
+          setError("PDF URL not available for this book");
+          setLoading(false);
+          return;
+        }
+        setPdfUrl(url);
       } catch (pdfError) {
-        console.error("Failed to load PDF:", pdfError);
-        setError("Failed to load PDF");
+        console.error("Failed to get PDF URL:", pdfError);
+        setError(pdfError.response?.data?.error || "Failed to load PDF. Please try again.");
       }
       
     } catch (err) {
@@ -175,13 +177,31 @@ export default function Reader() {
       
       <div className="reader-container">
         {pdfUrl && (
-          <iframe
-            src={pdfUrl}
-            className="pdf-viewer"
-            title={book?.title}
-            onContextMenu={(e) => e.preventDefault()}
-            allow="encrypted-media"
-          />
+          <>
+            <div className="reader-pdf-actions">
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-open-pdf"
+              >
+                Open PDF in New Tab
+              </a>
+              <a
+                href={pdfUrl}
+                download={book?.title ? `${book.title}.pdf` : "book.pdf"}
+                className="btn-download-pdf"
+              >
+                Download PDF
+              </a>
+            </div>
+            <iframe
+              src={pdfUrl}
+              className="pdf-viewer"
+              title={book?.title}
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          </>
         )}
       </div>
       

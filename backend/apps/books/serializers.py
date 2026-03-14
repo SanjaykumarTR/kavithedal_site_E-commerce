@@ -21,6 +21,22 @@ class CategorySerializer(serializers.ModelSerializer):
         return obj.books.count()
 
 
+def _file_url(field_file, request=None):
+    """Return an absolute URL for any storage-backed file field.
+    Works for both Cloudinary (already-absolute URLs) and local /media/ paths."""
+    if not field_file:
+        return None
+    try:
+        url = field_file.url          # uses the configured storage backend
+    except Exception:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url                    # Cloudinary / any absolute URL — return as-is
+    if request is not None:
+        return request.build_absolute_uri(url)
+    return url
+
+
 class BookSerializer(serializers.ModelSerializer):
     """
     Serializer for Book model.
@@ -32,7 +48,9 @@ class BookSerializer(serializers.ModelSerializer):
     discounted_price = serializers.SerializerMethodField()
     ebook_final_price = serializers.SerializerMethodField()
     physical_final_price = serializers.SerializerMethodField()
-    
+    cover_image = serializers.SerializerMethodField()
+    pdf_file = serializers.SerializerMethodField()
+
     class Meta:
         model = Book
         fields = [
@@ -46,6 +64,12 @@ class BookSerializer(serializers.ModelSerializer):
             'has_pdf', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_cover_image(self, obj):
+        return _file_url(obj.cover_image, self.context.get('request'))
+
+    def get_pdf_file(self, obj):
+        return _file_url(obj.pdf_file, self.context.get('request'))
     
     def get_category(self, obj):
         """Return category as string name for frontend compatibility"""
@@ -94,7 +118,8 @@ class BookListSerializer(serializers.ModelSerializer):
     author = serializers.SerializerMethodField()
     ebook_final_price = serializers.SerializerMethodField()
     physical_final_price = serializers.SerializerMethodField()
-    
+    cover_image = serializers.SerializerMethodField()
+
     class Meta:
         model = Book
         fields = [
@@ -104,6 +129,9 @@ class BookListSerializer(serializers.ModelSerializer):
             'book_type', 'stock',
             'category_name', 'cover_image', 'has_pdf', 'published_date', 'is_featured'
         ]
+
+    def get_cover_image(self, obj):
+        return _file_url(obj.cover_image, self.context.get('request'))
     
     def get_category_name(self, obj):
         return obj.category.name if obj.category else None
