@@ -8,7 +8,6 @@ from apps.books.validators import (
     validate_image_type, validate_image_size,
     validate_pdf_type, validate_pdf_size,
 )
-from apps.books.cloudinary_storage import ImageCloudinaryStorage
 
 
 class Category(models.Model):
@@ -68,7 +67,6 @@ class Book(models.Model):
     )
     cover_image = models.ImageField(
         upload_to='books/covers/',
-        storage=ImageCloudinaryStorage(),
         blank=True,
         null=True,
         validators=[validate_image_type, validate_image_size],
