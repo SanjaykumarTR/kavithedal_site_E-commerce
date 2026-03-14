@@ -2,6 +2,7 @@
 Admin configuration for Books app — with image previews and Cloudinary support.
 """
 import logging
+from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.utils.html import mark_safe
@@ -15,8 +16,35 @@ def _cloudinary_active():
     return getattr(settings, 'DEFAULT_FILE_STORAGE', '').startswith('cloudinary')
 
 
+class BookAdminForm(forms.ModelForm):
+    """
+    Custom ModelForm that prevents Cloudinary storage.delete() from being called
+    when an admin user clears a file field.
+
+    Django 5.x calls FileField.save_form_data() during form._post_clean()
+    (which runs inside form.is_valid()).  When the clear checkbox is ticked,
+    cleaned_data[field] == False, and save_form_data() calls FieldFile.delete()
+    → storage.delete() → Cloudinary API → can raise exceptions → 500 error.
+
+    By replacing False with '' here (before super()._post_clean()), we allow
+    save_form_data() to set the field to '' (clearing the DB value) WITHOUT
+    calling storage.delete(), which avoids the Cloudinary error.
+    """
+    class Meta:
+        model = Book
+        fields = '__all__'
+
+    def _post_clean(self):
+        for field_name in ('cover_image', 'pdf_file'):
+            if self.cleaned_data.get(field_name) is False:
+                self.cleaned_data[field_name] = ''
+        super()._post_clean()
+
+
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
+    form = BookAdminForm
+
     list_display = [
         'title', 'author', 'book_type',
         'ebook_price', 'physical_price', 'discount_percentage',
@@ -78,20 +106,6 @@ class BookAdmin(admin.ModelAdmin):
             )
         return super().changelist_view(request, extra_context=extra_context)
 
-    def save_form(self, request, form, change):
-        """Intercept file-clear actions BEFORE form.save() calls storage.delete().
-
-        Django signals a file clear by setting cleaned_data[field] = False.
-        FileField.save_form_data() then calls storage.delete() which raises
-        exceptions with Cloudinary. Replace False with '' to skip deletion
-        while still clearing the field value in the database.
-        """
-        file_fields = ('cover_image', 'pdf_file')
-        for field_name in file_fields:
-            if form.cleaned_data.get(field_name) is False:
-                form.cleaned_data[field_name] = ''
-        return super().save_form(request, form, change)
-
     def save_model(self, request, obj, form, change):
         """Save the book, gracefully handling file-storage errors on upload."""
         image_uploading = (
@@ -104,11 +118,11 @@ class BookAdmin(admin.ModelAdmin):
         )
         image_clearing = (
             'cover_image' in form.changed_data and
-            form.cleaned_data.get('cover_image') == ''
+            not form.cleaned_data.get('cover_image')
         )
         pdf_clearing = (
             'pdf_file' in form.changed_data and
-            form.cleaned_data.get('pdf_file') == ''
+            not form.cleaned_data.get('pdf_file')
         )
 
         try:

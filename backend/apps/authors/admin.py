@@ -2,6 +2,7 @@
 Admin configuration for Authors app — with photo preview and Cloudinary support.
 """
 import logging
+from django import forms
 from django.contrib import admin, messages
 from django.utils.html import mark_safe
 from .models import Author
@@ -9,8 +10,27 @@ from .models import Author
 logger = logging.getLogger('apps')
 
 
+class AuthorAdminForm(forms.ModelForm):
+    """
+    Custom ModelForm that prevents Cloudinary storage.delete() from being called
+    when an admin user clears the photo field.
+
+    See BookAdminForm in books/admin.py for full explanation.
+    """
+    class Meta:
+        model = Author
+        fields = '__all__'
+
+    def _post_clean(self):
+        if self.cleaned_data.get('photo') is False:
+            self.cleaned_data['photo'] = ''
+        super()._post_clean()
+
+
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
+    form = AuthorAdminForm
+
     list_display = ['name', 'email', 'mobile_number', 'books_count_display', 'photo_preview', 'created_at']
     search_fields = ['name', 'email', 'mobile_number']
     ordering = ['name']
@@ -32,23 +52,11 @@ class AuthorAdmin(admin.ModelAdmin):
         }),
     )
 
-    def save_form(self, request, form, change):
-        """Intercept file-clear actions BEFORE form.save() calls storage.delete().
-
-        Django signals a file clear by setting cleaned_data['photo'] = False.
-        FileField.save_form_data() then calls storage.delete() which raises
-        exceptions with Cloudinary. Replace False with '' to skip deletion
-        while still clearing the field value in the database.
-        """
-        if form.cleaned_data.get('photo') is False:
-            form.cleaned_data['photo'] = ''
-        return super().save_form(request, form, change)
-
     def save_model(self, request, obj, form, change):
         """Save author, falling back to no photo if storage upload fails."""
         photo_clearing = (
             'photo' in form.changed_data and
-            form.cleaned_data.get('photo') == ''
+            not form.cleaned_data.get('photo')
         )
 
         try:
