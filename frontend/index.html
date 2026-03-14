@@ -12,6 +12,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- SPA redirect restore: 404.html stores the path here so React Router can navigate to it -->
+    <script>
+      (function () {
+        var redirect = sessionStorage.getItem('spa_redirect');
+        if (redirect && redirect !== '/') {
+          sessionStorage.removeItem('spa_redirect');
+          window.history.replaceState(null, '', redirect);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
