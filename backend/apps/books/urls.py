@@ -3,7 +3,7 @@ URL Configuration for Books App.
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookViewSet, CategoryViewSet, BookSubmissionViewSet, ContactMessageViewSet
+from .views import BookViewSet, CategoryViewSet, BookSubmissionViewSet, ContactMessageViewSet, image_diagnostic
 
 router = DefaultRouter()
 router.register(r'contact-messages', ContactMessageViewSet, basename='contact-message')
@@ -11,5 +11,6 @@ router.register(r'submissions', BookSubmissionViewSet, basename='book-submission
 router.register(r'', BookViewSet, basename='book')
 
 urlpatterns = [
+    path('image-diagnostic/', image_diagnostic, name='image-diagnostic'),
     path('', include(router.urls)),
 ]

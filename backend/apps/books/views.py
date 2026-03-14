@@ -224,6 +224,30 @@ Please login to the admin panel to review this submission.
             print(f"Error sending email: {e}")
 
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def image_diagnostic(request):
+    """Public diagnostic endpoint: shows stored cover_image name + resolved URL for every book."""
+    from apps.books.serializers import _file_url
+    books = Book.objects.all().order_by('-created_at')
+    results = []
+    for book in books:
+        stored = book.cover_image.name if book.cover_image else None
+        try:
+            raw_url = book.cover_image.url if book.cover_image else None
+        except Exception as e:
+            raw_url = f'ERROR: {e}'
+        resolved = _file_url(book.cover_image, request, resource_type='image')
+        results.append({
+            'title': book.title,
+            'stored_name': stored,
+            'raw_url': raw_url,
+            'resolved_url': resolved,
+        })
+    from django.http import JsonResponse
+    return JsonResponse({'books': results})
+
+
 class ContactMessageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for ContactMessage model.
