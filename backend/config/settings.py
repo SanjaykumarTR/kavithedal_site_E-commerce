@@ -3,11 +3,13 @@ Django settings for Kavithedal Publications Backend.
 Production-ready configuration — all secrets loaded from environment variables.
 """
 import os
+import logging
 import dj_database_url
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 from corsheaders.defaults import default_headers
+
 # ─── Base directory ───────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -17,11 +19,41 @@ load_dotenv(BASE_DIR / '.env')
 
 
 # ─── Cloudinary — check early so INSTALLED_APPS can be built conditionally ────
+# Support both individual vars and CLOUDINARY_URL (cloudinary://key:secret@cloud)
+_cloudinary_url = os.environ.get('CLOUDINARY_URL', '')
+if _cloudinary_url and _cloudinary_url.startswith('cloudinary://'):
+    # Parse cloudinary://api_key:api_secret@cloud_name
+    try:
+        _parts = _cloudinary_url[len('cloudinary://'):].split('@')
+        _cloud_name = _parts[1] if len(_parts) == 2 else ''
+        _key_secret = _parts[0].split(':') if _parts else []
+        _api_key = _key_secret[0] if _key_secret else ''
+        _api_secret = _key_secret[1] if len(_key_secret) > 1 else ''
+        if _cloud_name and _api_key and _api_secret:
+            os.environ.setdefault('CLOUDINARY_CLOUD_NAME', _cloud_name)
+            os.environ.setdefault('CLOUDINARY_API_KEY', _api_key)
+            os.environ.setdefault('CLOUDINARY_API_SECRET', _api_secret)
+    except Exception:
+        pass
+
 _cloudinary_configured = bool(
     os.environ.get('CLOUDINARY_CLOUD_NAME') and
     os.environ.get('CLOUDINARY_API_KEY') and
     os.environ.get('CLOUDINARY_API_SECRET')
 )
+
+# Log Cloudinary status at startup so it's visible in Render logs
+logging.basicConfig()
+_startup_logger = logging.getLogger('config.settings')
+if _cloudinary_configured:
+    _startup_logger.warning(
+        'Cloudinary ACTIVE — cloud=%s', os.environ.get('CLOUDINARY_CLOUD_NAME')
+    )
+else:
+    _startup_logger.warning(
+        'Cloudinary NOT configured — media files will use local storage. '
+        'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in env.'
+    )
 
 
 # ─── Core Security ────────────────────────────────────────────────────────────
@@ -343,7 +375,19 @@ if _cloudinary_configured:
         'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
     }
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # Also call cloudinary.config() directly to ensure the SDK is configured
+    # even if cloudinary_storage's app_settings hasn't run yet.
+    try:
+        import cloudinary
+        cloudinary.config(
+            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+            api_key=os.environ.get('CLOUDINARY_API_KEY'),
+            api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+            secure=True,
+        )
+    except ImportError:
+        pass
     # NOTE: Do NOT set MEDIA_URL to the Cloudinary CDN root here.
     # django-cloudinary-storage 0.3.x builds file URLs as MEDIA_URL + filename,
     # which produces malformed Cloudinary URLs (missing /image/upload/ segment).
-    # Correct Cloudinary URLs are built in serializers via _cloudinary_url().
+    # Correct Cloudinary URLs are built in serializers via field_file.url.

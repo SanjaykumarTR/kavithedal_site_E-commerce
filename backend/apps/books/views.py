@@ -227,8 +227,20 @@ Please login to the admin panel to review this submission.
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def image_diagnostic(request):
-    """Public diagnostic endpoint: shows stored cover_image name + resolved URL for every book."""
+    """Public diagnostic endpoint: shows Cloudinary status + stored cover_image name + resolved URL for every book."""
     from apps.books.serializers import _file_url
+    from django.conf import settings as dj_settings
+
+    # Cloudinary status
+    cloudinary_storage = getattr(dj_settings, 'CLOUDINARY_STORAGE', {})
+    default_storage = getattr(dj_settings, 'DEFAULT_FILE_STORAGE', '')
+    cloudinary_info = {
+        'cloudinary_configured': bool(cloudinary_storage.get('CLOUD_NAME')),
+        'cloud_name': cloudinary_storage.get('CLOUD_NAME', 'NOT SET'),
+        'default_file_storage': default_storage,
+        'using_cloudinary': 'cloudinary' in default_storage.lower(),
+    }
+
     books = Book.objects.all().order_by('-created_at')
     results = []
     for book in books:
@@ -245,7 +257,7 @@ def image_diagnostic(request):
             'resolved_url': resolved,
         })
     from django.http import JsonResponse
-    return JsonResponse({'books': results})
+    return JsonResponse({'cloudinary': cloudinary_info, 'books': results})
 
 
 class ContactMessageViewSet(viewsets.ModelViewSet):
