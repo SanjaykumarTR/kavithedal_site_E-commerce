@@ -269,6 +269,24 @@
   opacity: 0.3;
 }
 
+/* video embed */
+.testimonial-video {
+  margin-top: 14px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.testimonial-video iframe {
+  width: 100%;
+  height: 180px;
+  border: 0;
+  border-radius: 8px;
+}
+.testimonial-video video {
+  width: 100%;
+  border-radius: 8px;
+  max-height: 200px;
+}
+
 /* carousel controls */
 .carousel-controls {
   display: flex;

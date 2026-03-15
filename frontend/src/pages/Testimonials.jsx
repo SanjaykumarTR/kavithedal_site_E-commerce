@@ -54,6 +54,19 @@ export default function Testimonials() {
     },
   }[language];
 
+  /* -------- video embed helper -------- */
+  const getVideoEmbedUrl = (url, videoType) => {
+    if (!url) return null;
+    if (videoType === "youtube") {
+      const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      if (match) return `https://www.youtube.com/embed/${match[1]}`;
+    } else if (videoType === "vimeo") {
+      const match = url.match(/vimeo\.com\/(\d+)/);
+      if (match) return `https://player.vimeo.com/video/${match[1]}`;
+    }
+    return url;
+  };
+
   /* -------- fetch -------- */
   useEffect(() => {
     api.get("/api/testimonials/")
@@ -269,6 +282,23 @@ export default function Testimonials() {
                       <div className="testimonial-rating">{stars(item.rating)}</div>
                     </div>
                     <p className="testimonial-message">{item.message}</p>
+                    {item.has_video && (item.video_url || item.video_file_url) && (
+                      <div className="testimonial-video">
+                        {(item.video_type === "youtube" || item.video_type === "vimeo") ? (
+                          <iframe
+                            src={getVideoEmbedUrl(item.video_url, item.video_type)}
+                            title="Testimonial Video"
+                            style={{ border: 0 }}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <video controls src={item.video_file_url || item.video_url} style={{ width: '100%', borderRadius: '8px' }}>
+                            Your browser does not support the video tag.
+                          </video>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

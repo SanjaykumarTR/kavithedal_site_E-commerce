@@ -5,6 +5,24 @@ import uuid
 from django.db import models
 
 
+def _video_storage():
+    """Return VideoMediaCloudinaryStorage when available, else default storage.
+
+    Using a callable means Django stores only the function reference in
+    migrations — safe across environments where cloudinary_storage may not
+    be installed (e.g. local dev without Cloudinary credentials).
+    Video files MUST be uploaded as resource_type='video' on Cloudinary;
+    the default MediaCloudinaryStorage uses resource_type='image' which
+    causes Cloudinary to reject mp4/mov/webm uploads entirely.
+    """
+    try:
+        from cloudinary_storage.storage import VideoMediaCloudinaryStorage
+        return VideoMediaCloudinaryStorage()
+    except ImportError:
+        from django.core.files.storage import FileSystemStorage
+        return FileSystemStorage()
+
+
 class Testimonial(models.Model):
     """
     Testimonial model for managing reader and author testimonials.
@@ -38,7 +56,7 @@ class Testimonial(models.Model):
     has_video = models.BooleanField(default=False)
     video_type = models.CharField(max_length=20, choices=VIDEO_TYPE_CHOICES, default='none', blank=True)
     video_url = models.URLField(max_length=500, blank=True, help_text="YouTube/Vimeo URL or MP4 video URL")
-    video_file = models.FileField(upload_to='testimonials/videos/', blank=True, null=True, help_text="Upload MP4 video file")
+    video_file = models.FileField(upload_to='testimonials/videos/', storage=_video_storage, blank=True, null=True, help_text="Upload MP4/MOV video file")
     photo = models.ImageField(upload_to='testimonials/photos/', blank=True, null=True, help_text="Profile photo of the reviewer")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
