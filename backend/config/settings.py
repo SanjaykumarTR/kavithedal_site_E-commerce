@@ -185,8 +185,17 @@ USE_TZ = True  # Always True — use timezone-aware datetimes throughout
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# WhiteNoise: compressed + hashed static files with long-term caching headers
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# ─── Storage Backends (Django 5.x — DEFAULT_FILE_STORAGE was removed in 5.0) ─
+# Must use STORAGES dict. Set default here; overridden below when Cloudinary
+# is configured. WhiteNoise handles staticfiles.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 
 # ─── Media Files ──────────────────────────────────────────────────────────────
@@ -374,7 +383,10 @@ if _cloudinary_configured:
         'API_KEY':    os.environ.get('CLOUDINARY_API_KEY'),
         'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
     }
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # Django 5.0+ removed DEFAULT_FILE_STORAGE — must use STORAGES dict.
+    STORAGES['default'] = {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    }
     # Also call cloudinary.config() directly to ensure the SDK is configured
     # even if cloudinary_storage's app_settings hasn't run yet.
     try:
