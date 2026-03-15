@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 
 def validate_image_type(file):
     """Accept JPEG, PNG, and WebP images only."""
+    if not file or not getattr(file, 'name', None):
+        return
     valid_extensions = {'.jpg', '.jpeg', '.png', '.webp'}
     ext = os.path.splitext(file.name)[1].lower()
     if ext not in valid_extensions:
@@ -17,6 +19,8 @@ def validate_image_type(file):
 
 def validate_pdf_type(file):
     """Accept PDF files only."""
+    if not file or not getattr(file, 'name', None):
+        return
     ext = os.path.splitext(file.name)[1].lower()
     if ext != '.pdf':
         raise ValidationError(
