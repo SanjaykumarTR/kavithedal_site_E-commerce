@@ -13,7 +13,10 @@ logger = logging.getLogger('apps')
 
 def _cloudinary_active():
     """Return True when Cloudinary is the active file storage backend."""
-    return getattr(settings, 'DEFAULT_FILE_STORAGE', '').startswith('cloudinary')
+    # Django 5.x uses STORAGES dict; DEFAULT_FILE_STORAGE was removed in 5.0
+    storages = getattr(settings, 'STORAGES', {})
+    default_backend = storages.get('default', {}).get('BACKEND', '')
+    return default_backend.startswith('cloudinary')
 
 
 class BookAdminForm(forms.ModelForm):
