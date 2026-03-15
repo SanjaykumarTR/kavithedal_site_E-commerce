@@ -37,11 +37,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Separate React core from app code → cached independently
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // Swiper is large (~100kB) — defer loading it from the main bundle
-          'vendor-swiper': ['swiper'],
+        manualChunks(id) {
+          if (id.includes('node_modules/swiper')) return 'vendor-swiper';
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router-dom/')
+          ) return 'vendor-react';
         },
       },
     },
