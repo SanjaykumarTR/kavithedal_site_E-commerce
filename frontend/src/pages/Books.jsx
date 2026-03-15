@@ -50,7 +50,9 @@ export default function Books() {
     // Get ebook and physical prices from API
     const ebookPrice = book.ebook_price ? Number(book.ebook_price) : null;
     const physicalPrice = book.physical_price ? Number(book.physical_price) : null;
-    
+    const ebookFinalPrice = book.ebook_final_price ? Number(book.ebook_final_price) : null;
+    const physicalFinalPrice = book.physical_final_price ? Number(book.physical_final_price) : null;
+
     return {
       id: book.id,
       title: book.title,
@@ -65,6 +67,8 @@ export default function Books() {
       category: book.category_name || "Uncategorized",
       ebook_price: ebookPrice,
       physical_price: physicalPrice,
+      ebook_final_price: ebookFinalPrice,
+      physical_final_price: physicalFinalPrice,
       discount_percentage: discountPercent
     };
   });
