@@ -87,22 +87,22 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
-  const logout = async () => {
-    try {
-      const refresh = localStorage.getItem("refresh_token");
-      if (refresh) {
-        await api.post("/api/logout/", { refresh });
-      }
-    } catch {
-      // ignore errors on logout
-    } finally {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("admin_user");
-      localStorage.removeItem("pending_admin_email");
-      localStorage.removeItem("pending_admin_id");
-      setUser(null);
+  const logout = () => {
+    // Clear auth state immediately so the UI (cart, wishlist, navbar) updates
+    // without waiting for the network. The backend call runs in the background
+    // to blacklist the refresh token — its result doesn't affect the UI.
+    const refresh = localStorage.getItem("refresh_token");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("auth_user");
+    localStorage.removeItem("admin_user");
+    localStorage.removeItem("pending_admin_email");
+    localStorage.removeItem("pending_admin_id");
+    setUser(null);
+
+    // Fire-and-forget: invalidate the refresh token on the backend
+    if (refresh) {
+      api.post("/api/logout/", { refresh }).catch(() => {});
     }
   };
 

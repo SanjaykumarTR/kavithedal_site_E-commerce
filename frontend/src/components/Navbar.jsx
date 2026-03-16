@@ -22,9 +22,9 @@ export default function Navbar() {
     navigate("/login");
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setShowUserMenu(false);
-    await logout();
+    logout();
     navigate("/login");
   };
 
