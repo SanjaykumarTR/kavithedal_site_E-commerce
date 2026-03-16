@@ -24,8 +24,9 @@ logger = logging.getLogger('apps')
 
 
 def _razorpay_configured():
-    """Return True when both Razorpay credentials are set in the environment."""
+    """Return True when razorpay package is available and both credentials are set."""
     return bool(
+        razorpay is not None and
         getattr(settings, 'RAZORPAY_KEY_ID', '') and
         getattr(settings, 'RAZORPAY_KEY_SECRET', '')
     )
