@@ -1,14 +1,24 @@
 """
 Views for Orders App - Order management and Razorpay payment integration.
 """
+import hashlib
+import hmac
+import json
 import logging
 from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
 from django.db import transaction
+
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 
 logger = logging.getLogger('apps')
 
@@ -42,11 +52,74 @@ def calculate_delivery_charge(total_price):
 
 
 def _get_razorpay_client():
-    """Lazy import razorpay client only when needed."""
-    import razorpay
+    """Return a configured Razorpay client (razorpay must be installed)."""
     return razorpay.Client(
         auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
     )
+
+
+def _send_customer_email(customer_email, customer_name, book_titles,
+                          order_type, amount, order_id, estimated_delivery=None):
+    """
+    Send order confirmation + payment success email to the customer.
+    Called after every successful payment verification.
+    book_titles: str (single book) or list of str (cart checkout)
+    """
+    from django.core.mail import send_mail
+
+    if isinstance(book_titles, list):
+        book_list = '\n'.join(f'  • {t}' for t in book_titles)
+    else:
+        book_list = f'  • {book_titles}'
+
+    order_type_label = 'eBook' if order_type == 'ebook' else 'Physical Book'
+
+    if order_type == 'ebook':
+        delivery_section = (
+            'Your eBook is now available in your library.\n'
+            'Visit https://kavithedal.com/library to read it.'
+        )
+    else:
+        delivery_section = 'Your book will be shipped to your address.'
+        if estimated_delivery:
+            delivery_section += f'\nEstimated delivery: {estimated_delivery}'
+
+    subject = f'Order Confirmed — Kavithedal Publications'
+    message = f"""Dear {customer_name},
+
+Thank you for your purchase! Your payment has been received successfully.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Book(s):
+{book_list}
+
+Type    : {order_type_label}
+Amount  : ₹{amount}
+Order ID: {order_id}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{delivery_section}
+
+View your orders: https://kavithedal.com/user-dashboard
+
+For any queries, reply to this email or contact us at kavithedalpublications@gmail.com
+
+Warm regards,
+Kavithedal Publications
+"""
+    try:
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [customer_email],
+            fail_silently=False,
+        )
+    except Exception as exc:
+        logger.error('Failed to send customer email to %s: %s', customer_email, exc)
+
 
 from .models import Order, Payment, UserLibrary, DeliveryZone, EbookPurchase
 from .serializers import (
@@ -557,6 +630,22 @@ class VerifyPaymentView(APIView):
                         defaults={'order': order},
                     )
 
+        # Send order confirmation email to customer
+        customer_email = order.email or request.user.email
+        customer_name = order.full_name or request.user.get_full_name() or customer_email
+        _send_customer_email(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            book_titles=order.book.title,
+            order_type=order.order_type,
+            amount=float(order.total_price),
+            order_id=str(order.id),
+            estimated_delivery=(
+                order.estimated_delivery_date.strftime('%d %b %Y')
+                if order.estimated_delivery_date else None
+            ),
+        )
+
         return Response({
             'status': 'Payment successful',
             'order_id': str(order.id),
@@ -819,7 +908,17 @@ This is an automated notification from Kavithedal Publications.
             )
         except Exception as e:
             logger.error('Failed to send admin email for purchase %s: %s', purchase.id, e)
-        
+
+        # Send order confirmation email to customer
+        _send_customer_email(
+            customer_email=purchase.email,
+            customer_name=purchase.user_name,
+            book_titles=purchase.book.title,
+            order_type='ebook',
+            amount=float(purchase.price),
+            order_id=str(purchase.id),
+        )
+
         return Response({
             'status': 'Payment successful',
             'purchase_id': str(purchase.id),
@@ -1021,7 +1120,18 @@ class CartPaymentVerifyView(APIView):
                     
                 except Book.DoesNotExist:
                     continue
-            
+
+            # Send order confirmation email to customer
+            book_titles = [item.get('title', 'Book') for item in items]
+            _send_customer_email(
+                customer_email=request.user.email,
+                customer_name=request.user.get_full_name() or request.user.email,
+                book_titles=book_titles,
+                order_type='physical',  # cart may have mixed types; physical label is generic
+                amount=float(total_amount),
+                order_id=razorpay_payment_id,
+            )
+
             return Response({
                 'status': 'Payment successful',
                 'message': f'{len(created_orders)} order(s) created successfully',
@@ -1039,3 +1149,109 @@ class CartPaymentVerifyView(APIView):
                 {'error': f'Payment verification failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RazorpayWebhookView(APIView):
+    """
+    Razorpay Webhook endpoint.
+
+    Razorpay sends POST requests here for payment events.
+    We verify the X-Razorpay-Signature header using HMAC-SHA256 and the
+    RAZORPAY_WEBHOOK_SECRET environment variable before processing any event.
+
+    Events handled:
+      payment.captured  — mark order/purchase paid
+      order.paid        — same as above (belt-and-suspenders)
+      payment.failed    — mark order/purchase failed
+    """
+    authentication_classes = []          # No JWT — Razorpay sends no auth header
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        webhook_secret = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '')
+        if not webhook_secret:
+            logger.error('RazorpayWebhookView: RAZORPAY_WEBHOOK_SECRET not configured')
+            return Response({'error': 'Webhook not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 1. Verify HMAC-SHA256 signature
+        received_sig = request.headers.get('X-Razorpay-Signature', '')
+        if not received_sig:
+            logger.warning('RazorpayWebhookView: missing X-Razorpay-Signature header')
+            return Response({'error': 'Missing signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+        expected_sig = hmac.new(
+            key=webhook_secret.encode('utf-8'),
+            msg=request.body,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+
+        if not hmac.compare_digest(expected_sig, received_sig):
+            logger.warning('RazorpayWebhookView: signature mismatch — possible spoofed request')
+            return Response({'error': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Parse payload
+        try:
+            payload = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'error': 'Invalid JSON'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = payload.get('event', '')
+        payment_entity = payload.get('payload', {}).get('payment', {}).get('entity', {})
+        razorpay_payment_id = payment_entity.get('id', '')
+        razorpay_order_id = payment_entity.get('order_id', '')
+
+        logger.info('RazorpayWebhookView: received event=%s payment=%s order=%s',
+                    event, razorpay_payment_id, razorpay_order_id)
+
+        # 3. Handle events
+        if event in ('payment.captured', 'order.paid'):
+            with transaction.atomic():
+                # Update Order records
+                updated_orders = Order.objects.filter(
+                    razorpay_order_id=razorpay_order_id,
+                    payment_status='pending',
+                )
+                for order in updated_orders.select_related('book', 'user'):
+                    order.payment_status = 'paid'
+                    order.status = 'completed'
+                    order.razorpay_payment_id = razorpay_payment_id
+                    order.transaction_id = razorpay_payment_id
+                    order.save(update_fields=['payment_status', 'status',
+                                              'razorpay_payment_id', 'transaction_id'])
+                    # Add ebooks to library
+                    if order.order_type == 'ebook':
+                        UserLibrary.objects.get_or_create(
+                            user=order.user,
+                            book=order.book,
+                            defaults={'order': order},
+                        )
+
+                # Update EbookPurchase records
+                EbookPurchase.objects.filter(
+                    razorpay_order_id=razorpay_order_id,
+                    payment_status='initiated',
+                ).update(
+                    payment_status='completed',
+                    razorpay_payment_id=razorpay_payment_id,
+                    transaction_id=razorpay_payment_id,
+                )
+
+            logger.info('RazorpayWebhookView: %s processed successfully', event)
+
+        elif event == 'payment.failed':
+            with transaction.atomic():
+                Order.objects.filter(
+                    razorpay_order_id=razorpay_order_id,
+                    payment_status='pending',
+                ).update(payment_status='failed', status='cancelled')
+
+                EbookPurchase.objects.filter(
+                    razorpay_order_id=razorpay_order_id,
+                    payment_status='initiated',
+                ).update(payment_status='failed')
+
+            logger.info('RazorpayWebhookView: payment.failed processed for order %s', razorpay_order_id)
+
+        # Always return 200 — Razorpay retries on non-2xx
+        return Response({'status': 'ok'})

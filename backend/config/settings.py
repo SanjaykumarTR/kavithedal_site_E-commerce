@@ -74,6 +74,11 @@ ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()]
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
+# Custom domain — always allowed regardless of env var value
+for _custom_host in ('kavithedal.com', 'www.kavithedal.com'):
+    if _custom_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_custom_host)
+
 
 # ─── Application Definition ───────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -330,6 +335,8 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 # ─── Razorpay ─────────────────────────────────────────────────────────────────
 RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
 RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+# Required for webhook signature verification (set in Render dashboard)
+RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 
 
 # ─── Admin Email ──────────────────────────────────────────────────────────────

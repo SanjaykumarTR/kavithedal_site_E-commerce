@@ -8,7 +8,7 @@ from .views import (
     CreateOrderView, VerifyPaymentView,
     EbookPurchaseView, VerifyEbookPaymentView,
     DeliveryZoneViewSet, CartCheckoutView, CartPaymentVerifyView,
-    CalculateDeliveryView,
+    CalculateDeliveryView, RazorpayWebhookView,
 )
 
 router = DefaultRouter()
@@ -30,4 +30,6 @@ urlpatterns = [
     path('cart-checkout/', CartCheckoutView.as_view(), name='cart-checkout'),
     path('cart-verify-payment/', CartPaymentVerifyView.as_view(), name='cart-verify-payment'),
     path('calculate-delivery/', CalculateDeliveryView.as_view(), name='calculate-delivery'),
+    # Razorpay webhook — also reachable at /api/payment/webhook/ via config/urls.py
+    path('webhook/', RazorpayWebhookView.as_view(), name='razorpay-webhook'),
 ]

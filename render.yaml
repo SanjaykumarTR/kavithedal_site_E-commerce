@@ -40,10 +40,9 @@ services:
         value: "False"
 
       - key: ALLOWED_HOSTS
-        # After first deploy, update this in the Render dashboard to include
-        # your actual service hostname, e.g.:
+        # settings.py auto-appends RENDER_EXTERNAL_HOSTNAME and kavithedal.com.
+        # Add your actual Render hostname here after first deploy, e.g.:
         # kavithedal-api.onrender.com,localhost,127.0.0.1
-        # settings.py also auto-appends RENDER_EXTERNAL_HOSTNAME.
         value: "localhost,127.0.0.1"
 
       - key: PYTHON_VERSION
@@ -73,10 +72,13 @@ services:
 
       # ── Razorpay ─────────────────────────────────────────────────────────
       - key: RAZORPAY_KEY_ID
-        sync: false       # Set in Render dashboard
+        sync: false       # Set in Render dashboard (use rzp_live_... for production)
 
       - key: RAZORPAY_KEY_SECRET
         sync: false       # Set in Render dashboard
+
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false       # Set in Render dashboard — copy from Razorpay dashboard → Webhooks
 
       # ── Admin Access ──────────────────────────────────────────────────────
       - key: ADMIN_EMAIL
@@ -123,6 +125,7 @@ services:
       - key: VITE_API_URL
         value: "https://kavithedal-web.onrender.com"
 
-      # Razorpay public key (safe to expose — it is the test/live publishable key)
+      # Razorpay publishable key (safe to expose in frontend bundle)
+      # Use rzp_live_... for production, rzp_test_... for staging
       - key: VITE_RAZORPAY_KEY_ID
         sync: false       # Set in Render dashboard
