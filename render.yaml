@@ -88,7 +88,7 @@ services:
       # Pre-filled with the default Render URL for kavithedal-frontend.
       # If you rename the service or use a custom domain, update this value.
       - key: CORS_ALLOWED_ORIGINS
-        sync: false       # Set in Render dashboard — your frontend URL e.g. https://kavithedal-frontend.onrender.com
+        value: "https://kavithedal-frontend-sgki.onrender.com"
 
       # ── Cloudinary (persistent media — book covers, PDFs, author photos) ──
       - key: CLOUDINARY_CLOUD_NAME
