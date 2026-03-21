@@ -1,12 +1,9 @@
-import { useContext } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination, Autoplay, EffectCoverflow, Parallax } from "swiper/modules";
+import { Navigation, Pagination, Autoplay, EffectCoverflow } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "swiper/css/effect-coverflow";
-import "swiper/css/parallax";
-import { LanguageContext } from "../context/LanguageContext";
 import image1 from "../assects/image1.jpg.jpeg";
 import image2 from "../assects/image2.jpg.jpeg";
 import image3 from "../assects/image3.jpg.jpeg";
@@ -16,8 +13,6 @@ import image6 from "../assects/image6.jpg.jpeg";
 import "../styles/imageSlider.css";
 
 export default function ImageSlider() {
-  const { language } = useContext(LanguageContext);
-
   const slides = [
     { src: image1, alt: "Slide 1" },
     { src: image2, alt: "Slide 2" },
@@ -27,25 +22,10 @@ export default function ImageSlider() {
     { src: image6, alt: "Slide 6" }
   ];
 
-  const sliderContent = {
-    en: {
-      badge: "Kavithedal Publications",
-      title: "Discover Amazing Stories",
-      subtitle: "Explore our collection of finest Tamil literature"
-    },
-    ta: {
-      badge: "கவித்தேடல் பதிப்பகம்",
-      title: "அற்புதமான கதைகளை கண்டுபிடிக்கவும்",
-      subtitle: "எங்கள் தமிழ் இலக்கியத்தின் சிறந்த தொகுப்பை ஆராயுங்கள்"
-    }
-  };
-
-  const content = sliderContent[language];
-
   return (
     <div className="slider-container">
       <Swiper
-        modules={[Navigation, Pagination, Autoplay, EffectCoverflow, Parallax]}
+        modules={[Navigation, Pagination, Autoplay, EffectCoverflow]}
         effect={"coverflow"}
         grabCursor={true}
         centeredSlides={true}
@@ -57,14 +37,13 @@ export default function ImageSlider() {
           modifier: 1.5,
           slideShadows: true,
         }}
-        parallax={true}
         spaceBetween={0}
         navigation={true}
-        pagination={{ 
+        pagination={{
           clickable: true,
           dynamicBullets: true,
         }}
-        autoplay={{ 
+        autoplay={{
           delay: 3500,
           disableOnInteraction: false,
           pauseOnMouseEnter: true,
@@ -74,24 +53,15 @@ export default function ImageSlider() {
       >
         {slides.map((slide, index) => (
           <SwiperSlide key={index} className="slider-slide">
-            <div className="slide-content" data-parallax="0.3">
-              <img
-                src={slide.src}
-                alt={slide.alt}
-                width="1200"
-                height="460"
-                loading={index === 0 ? "eager" : "lazy"}
-                decoding={index === 0 ? "sync" : "async"}
-                fetchPriority={index === 0 ? "high" : "auto"}
-              />
-              <div className="slide-overlay">
-                <div className="slide-text">
-                  <span className="slide-badge">{content.badge}</span>
-                  <h2>{content.title}</h2>
-                  <p>{content.subtitle}</p>
-                </div>
-              </div>
-            </div>
+            <img
+              src={slide.src}
+              alt={slide.alt}
+              width="1200"
+              height="460"
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding={index === 0 ? "sync" : "async"}
+              fetchPriority={index === 0 ? "high" : "auto"}
+            />
           </SwiperSlide>
         ))}
       </Swiper>
