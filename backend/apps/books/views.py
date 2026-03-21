@@ -8,7 +8,6 @@ from rest_framework.views import APIView
 from django.http import FileResponse, Http404
 from django.conf import settings
 import os
-import time
 import logging
 
 logger = logging.getLogger('apps')
@@ -128,36 +127,17 @@ class SecureFileView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Generate a time-limited signed Cloudinary URL (valid for 1 hour).
-        # PDFs are uploaded via cloudinary_storage as type='upload' (not 'authenticated'),
-        # so we sign against type='upload' to produce a valid expiring URL.
+        # Use the storage backend URL directly — django-cloudinary-storage already
+        # knows the correct Cloudinary public_id and URL format for this file.
+        # Access is protected by the UserLibrary check above (only purchasers reach here).
         try:
-            import cloudinary.utils
-            import cloudinary
-            cloud_name = getattr(settings, 'CLOUDINARY_STORAGE', {}).get('CLOUD_NAME', '')
-            if cloud_name:
-                public_id = book.pdf_file.name  # e.g. media/books/pdfs/filename.pdf
-                expires_at = int(time.time()) + 3600
-                pdf_url, _ = cloudinary.utils.cloudinary_url(
-                    public_id,
-                    resource_type='raw',
-                    type='upload',
-                    sign_url=True,
-                    expires_at=expires_at,
-                )
-            else:
-                # Cloudinary not configured locally — use the storage URL directly
-                pdf_url = book.pdf_file.url
+            pdf_url = book.pdf_file.url
         except Exception as e:
-            logger.warning('Could not generate signed Cloudinary URL for book %s: %s — falling back to storage URL', book_id, e)
-            try:
-                pdf_url = book.pdf_file.url
-            except Exception as e2:
-                logger.error('Could not resolve PDF URL for book %s: %s', book_id, e2)
-                return Response(
-                    {'error': 'PDF file is not accessible'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            logger.error('Could not resolve PDF URL for book %s: %s', book_id, e)
+            return Response(
+                {'error': 'PDF file is not accessible'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response({'pdf_url': pdf_url, 'title': book.title})
 
