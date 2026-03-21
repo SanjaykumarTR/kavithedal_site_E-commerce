@@ -1228,15 +1228,17 @@ class RazorpayWebhookView(APIView):
                             defaults={'order': order},
                         )
 
-                # Update EbookPurchase records
-                EbookPurchase.objects.filter(
+                # Update EbookPurchase records and add to UserLibrary
+                ebook_purchases = EbookPurchase.objects.filter(
                     razorpay_order_id=razorpay_order_id,
                     payment_status='initiated',
-                ).update(
-                    payment_status='completed',
-                    razorpay_payment_id=razorpay_payment_id,
-                    transaction_id=razorpay_payment_id,
-                )
+                ).select_related('user', 'book')
+                for ep in ebook_purchases:
+                    ep.payment_status = 'completed'
+                    ep.razorpay_payment_id = razorpay_payment_id
+                    ep.transaction_id = razorpay_payment_id
+                    ep.save(update_fields=['payment_status', 'razorpay_payment_id', 'transaction_id'])
+                    UserLibrary.objects.get_or_create(user=ep.user, book=ep.book)
 
             logger.info('RazorpayWebhookView: %s processed successfully', event)
 
