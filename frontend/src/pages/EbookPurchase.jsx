@@ -141,7 +141,12 @@ export default function EbookPurchase() {
       }
       
       // If Razorpay order was created, initialize payment
-      if (data.razorpay_order_id && window.Razorpay) {
+      if (data.razorpay_order_id) {
+        if (!window.Razorpay) {
+          setError("Payment gateway is still loading. Please wait a moment and try again.");
+          return;
+        }
+
         const razorpayOptions = {
           key: data.razorpay_key_id,
           amount: data.amount * 100, // Convert to paise
@@ -159,8 +164,13 @@ export default function EbookPurchase() {
                 razorpay_order_id: data.razorpay_order_id
               });
               navigate(`/purchase-success?purchase_id=${data.purchase_id}&book=${data.book_title}`);
-            } catch (error) {
-              alert("Payment verification failed. Please contact support.");
+            } catch {
+              setError("Payment verification failed. Please contact support.");
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setError("Payment was cancelled. Please try again.");
             }
           },
           prefill: {
@@ -172,7 +182,7 @@ export default function EbookPurchase() {
             color: "#B71C1C"
           }
         };
-        
+
         const rzp = new window.Razorpay(razorpayOptions);
         rzp.open();
       }
