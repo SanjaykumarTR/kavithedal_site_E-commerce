@@ -163,10 +163,14 @@ class UserLibraryListSerializer(serializers.ModelSerializer):
     book_title = serializers.CharField(source='book.title', read_only=True)
     book_cover = serializers.SerializerMethodField()
     book_author = serializers.CharField(source='book.author.name', read_only=True)
-    has_pdf = serializers.BooleanField(source='book.pdf_file', read_only=True)
+    has_pdf = serializers.SerializerMethodField()
 
     def get_book_cover(self, obj):
         return _file_url(obj.book.cover_image, self.context.get('request'), resource_type='image')
+    
+    def get_has_pdf(self, obj):
+        """Check if book has a PDF file."""
+        return bool(obj.book.pdf_file)
     
     class Meta:
         model = UserLibrary

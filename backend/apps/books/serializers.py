@@ -116,7 +116,7 @@ class BookSerializer(serializers.ModelSerializer):
         return _file_url(obj.cover_image, self.context.get('request'), resource_type='image')
 
     def get_pdf_file(self, obj):
-        return _file_url(obj.pdf_file, self.context.get('request'), resource_type='image')
+        return _file_url(obj.pdf_file, self.context.get('request'), resource_type='raw')
     
     def get_category(self, obj):
         """Return category as string name for frontend compatibility"""
