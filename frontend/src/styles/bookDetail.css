@@ -724,11 +724,61 @@
   transform: translateY(-2px);
 }
 
+/* Wishlist Button */
+.btn-wishlist {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  max-width: 280px;
+  padding: 1rem 1.5rem;
+  background: transparent;
+  border: 2px solid #e53935;
+  color: #e53935;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.btn-wishlist:hover {
+  background: #fce4ec;
+  transform: translateY(-2px);
+}
+
+.btn-wishlist.active {
+  background: #fce4ec;
+  border-color: #e53935;
+  color: #c62828;
+}
+
+/* Toast notification on book detail page */
+.book-detail-toast {
+  background: #323232;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  animation: fadeInOut 2.5s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-4px); }
+  15% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @media (max-width: 768px) {
   .book-action-buttons {
     flex-direction: column;
   }
-  .btn-add-cart {
+  .btn-add-cart,
+  .btn-wishlist {
     max-width: none;
     width: 100%;
   }

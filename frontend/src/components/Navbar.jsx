@@ -93,6 +93,13 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="mobile-slide-menu">
           <div className="mobile-menu-header">
+            <button
+              className="mobile-menu-close"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
             <button className="lang-btn" onClick={toggleLanguage}>
               {language === "en" ? "தமிழ்" : "EN"}
             </button>

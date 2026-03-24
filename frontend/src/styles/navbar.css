@@ -101,6 +101,26 @@
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
+.mobile-menu-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.mobile-menu-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .mobile-user-info {
   display: flex;
   align-items: center;

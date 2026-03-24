@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { CartContext } from "../context/CartContext";
+import { WishlistContext } from "../context/WishlistContext";
 import api from "../api/axios";
 import { checkBookAccess } from "../api/orders";
 import { mediaUrl } from "../utils/mediaUrl";
@@ -14,12 +15,14 @@ export default function BookDetail() {
   const { language } = useContext(LanguageContext);
   const { user } = useAuth();
   const { addToCart } = useContext(CartContext);
+  const { toggleWishlist, isInWishlist } = useContext(WishlistContext);
   const navigate = useNavigate();
 
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [showPurchaseSelector, setShowPurchaseSelector] = useState(false);
+  const [toast, setToast] = useState("");
 
   const translations = {
     en: {
@@ -30,6 +33,10 @@ export default function BookDetail() {
       buyNow: "Buy Now",
       readNow: "Read Now",
       addToCart: "Add to Cart",
+      addToWishlist: "Add to Wishlist",
+      removeFromWishlist: "Remove from Wishlist",
+      addedToWishlist: "Added to wishlist!",
+      removedFromWishlist: "Removed from wishlist.",
       alreadyOwned: "You already own this book",
       bookNotFound: "Book not found",
       ebook: "eBook",
@@ -45,6 +52,10 @@ export default function BookDetail() {
       buyNow: "இப்போது வாங்கு",
       readNow: "இப்போது படி",
       addToCart: "கார்ட்டில் சேர்",
+      addToWishlist: "விருப்பத்தில் சேர்",
+      removeFromWishlist: "விருப்பத்திலிருந்து நீக்கு",
+      addedToWishlist: "விருப்பப்பட்டியலில் சேர்க்கப்பட்டது!",
+      removedFromWishlist: "விருப்பப்பட்டியலில் இருந்து நீக்கப்பட்டது.",
       alreadyOwned: "இந்த புத்தகத்தை ஏற்கனவு வாங்கி விட்டீர்கள்",
       bookNotFound: "புத்தகம் கிடைக்கவில்லை",
       ebook: "இ-புத்தகம்",
@@ -102,6 +113,18 @@ export default function BookDetail() {
     }
     addToCart(book);
     alert(language === "en" ? "Added to cart!" : "கார்ட்டில் சேர்க்கப்பட்டது!");
+  };
+
+  const handleWishlist = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    const removing = isInWishlist(book.id);
+    toggleWishlist(book);
+    const msg = removing ? t.removedFromWishlist : t.addedToWishlist;
+    setToast(msg);
+    setTimeout(() => setToast(""), 2500);
   };
 
   if (loading) {
@@ -181,6 +204,8 @@ export default function BookDetail() {
             )}
           </div>
 
+          {toast && <div className="book-detail-toast">{toast}</div>}
+
           {hasAccess ? (
             <div className="book-owned-section">
               <p className="owned-message">{t.alreadyOwned}</p>
@@ -195,6 +220,14 @@ export default function BookDetail() {
               </button>
               <button className="btn-add-cart" onClick={handleAddToCart}>
                 {t.addToCart}
+              </button>
+              <button
+                className={`btn-wishlist${isInWishlist(book.id) ? " active" : ""}`}
+                onClick={handleWishlist}
+                title={isInWishlist(book.id) ? t.removeFromWishlist : t.addToWishlist}
+              >
+                {isInWishlist(book.id) ? "❤️" : "🤍"}
+                {" "}{isInWishlist(book.id) ? t.removeFromWishlist : t.addToWishlist}
               </button>
             </div>
           )}
