@@ -125,6 +125,46 @@
   opacity: 0.85;
 }
 
+.btn-toggle-viewer {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: #333;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-toggle-viewer:hover {
+  opacity: 0.8;
+}
+
+.pdf-fallback-hint {
+  font-size: 0.82rem;
+  color: #888;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.pdf-fallback-hint a {
+  color: #b8860b;
+  text-decoration: underline;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #b8860b;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+}
+
 .pdf-viewer {
   width: 100%;
   max-width: 900px;

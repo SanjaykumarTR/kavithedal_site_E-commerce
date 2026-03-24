@@ -16,6 +16,7 @@ export default function Reader() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [useGoogleViewer, setUseGoogleViewer] = useState(false);
   
   const translations = {
     en: {
@@ -185,23 +186,43 @@ export default function Reader() {
                 rel="noopener noreferrer"
                 className="btn-open-pdf"
               >
-                Open PDF in New Tab
+                📄 Open PDF in New Tab
               </a>
+              <button
+                className="btn-toggle-viewer"
+                onClick={() => setUseGoogleViewer(v => !v)}
+              >
+                {useGoogleViewer ? "Switch to Direct View" : "Switch to Google Viewer"}
+              </button>
             </div>
-            <object
-              data={pdfUrl}
-              type="application/pdf"
-              className="pdf-viewer"
-              title={book?.title}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              <p style={{ textAlign: "center", padding: "20px" }}>
-                Your browser cannot display this PDF inline.{" "}
-                <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
-                  Click here to open it.
-                </a>
-              </p>
-            </object>
+
+            {useGoogleViewer ? (
+              <iframe
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
+                className="pdf-viewer"
+                title={book?.title}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            ) : (
+              <iframe
+                src={pdfUrl}
+                className="pdf-viewer"
+                title={book?.title}
+                onContextMenu={(e) => e.preventDefault()}
+                onError={() => setUseGoogleViewer(true)}
+              />
+            )}
+
+            <p className="pdf-fallback-hint">
+              If the PDF appears blank, click{" "}
+              <button className="link-btn" onClick={() => setUseGoogleViewer(v => !v)}>
+                Switch to Google Viewer
+              </button>{" "}
+              or{" "}
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+                Open in New Tab
+              </a>.
+            </p>
           </>
         )}
       </div>
