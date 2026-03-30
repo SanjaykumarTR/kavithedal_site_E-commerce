@@ -7,7 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from apps.books import views
-from apps.orders.views import RazorpayWebhookView
+from apps.orders.views import CashfreeWebhookView
 
 
 def health_check(request):
@@ -29,8 +29,8 @@ urlpatterns = [
     path('api/contests/', include('apps.contests.urls')),
     path('api/orders/', include('apps.orders.urls')),
     path('api/wishlist/', include('apps.wishlist.urls')),
-    # Razorpay webhook — canonical URL to register in Razorpay dashboard
-    path('api/payment/webhook/', RazorpayWebhookView.as_view(), name='razorpay-webhook'),
+    # Cashfree webhook — register this URL in Cashfree dashboard → Developers → Webhooks
+    path('api/payment/webhook/', CashfreeWebhookView.as_view(), name='cashfree-webhook'),
 
     # Secure PDF file access (requires authentication + purchase)
     path('api/books/<uuid:book_id>/pdf/', views.SecureFileView.as_view(), name='secure-pdf'),

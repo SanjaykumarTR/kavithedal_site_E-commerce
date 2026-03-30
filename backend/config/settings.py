@@ -332,11 +332,16 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 
 
-# ─── Razorpay ─────────────────────────────────────────────────────────────────
-RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
-RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
-# Required for webhook signature verification (set in Render dashboard)
-RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
+# ─── Cashfree Payment Gateway ─────────────────────────────────────────────────
+# Get credentials from https://merchant.cashfree.com → Developers → API Keys
+CASHFREE_APP_ID = os.environ.get('CASHFREE_APP_ID', '')
+CASHFREE_SECRET_KEY = os.environ.get('CASHFREE_SECRET_KEY', '')
+# 'sandbox' for testing, 'production' for live payments
+CASHFREE_ENV = os.environ.get('CASHFREE_ENV', 'sandbox')
+
+# Frontend URL — used to build Cashfree return_url after payment
+# Set to your deployed frontend URL in production, e.g. https://kavithedal.com
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
 
 # ─── Admin Email ──────────────────────────────────────────────────────────────

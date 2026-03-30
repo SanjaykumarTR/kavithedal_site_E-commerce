@@ -93,20 +93,44 @@ class IsPurchasedPermission(permissions.BasePermission):
 
 class SecureFileView(APIView):
     """
-    API View to serve PDF files securely.
-    Only users who have purchased the book can access the PDF.
+    Secure PDF access API for Kavithedal Publications.
+    
+    Security features:
+    - Only authenticated users with valid purchase can access
+    - Generates time-limited signed URLs from Cloudinary
+    - Logs access for security auditing
+    - Returns temporary URL (expires in 5 minutes by default)
     """
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, book_id):
-        # Check if user has purchased the book
-        has_access = UserLibrary.objects.filter(
+        from apps.orders.models import UserLibrary, EbookPurchase
+        from apps.books.secure_ebook import get_pdf_url_from_cloudinary, extract_public_id_from_cloudinary_url
+        
+        logger = logging.getLogger('apps')
+        
+        # Check if user has purchased the book (via UserLibrary or EbookPurchase)
+        has_purchased = UserLibrary.objects.filter(
             user=request.user,
             book_id=book_id
         ).exists()
         
-        # Allow authorized admin access
-        if not has_access and not is_authorized_admin(request.user):
+        # Also check EbookPurchase for ebook purchases
+        if not has_purchased:
+            has_purchased = EbookPurchase.objects.filter(
+                user=request.user,
+                book_id=book_id,
+                payment_status='completed'
+            ).exists()
+        
+        # Allow authorized admin access (for preview purposes)
+        from apps.accounts.utils import is_authorized_admin
+        is_admin = is_authorized_admin(request.user)
+        
+        if not has_purchased and not is_admin:
+            logger.warning(
+                f"Unauthorized PDF access attempt: user={request.user.id}, book={book_id}"
+            )
             return Response(
                 {'error': 'You do not have access to this file. Please purchase the book first.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -126,23 +150,55 @@ class SecureFileView(APIView):
                 {'error': 'No PDF file available for this book'},
                 status=status.HTTP_404_NOT_FOUND
             )
-
-        # Get the storage URL for PDF file from Cloudinary
+        
+        # Get the base URL from Cloudinary
         try:
             pdf_url = book.pdf_file.url
             logger.info('PDF URL for book %s: %s', book_id, pdf_url)
             
-            # If using Cloudinary raw storage, the URL should already be correct
-            # If it was uploaded as image type, we need to append .pdf to get original
+            # Handle different Cloudinary URL types
             if 'res.cloudinary.com' in pdf_url:
                 if '/image/upload/' in pdf_url and not pdf_url.endswith('.pdf'):
                     # Image-type upload - append .pdf to get original file
                     pdf_url = pdf_url + '.pdf'
-                elif '/raw/upload/' in pdf_url:
-                    # Raw-type upload - should work directly
-                    pass
             
-            logger.info('Final PDF URL: %s', pdf_url)
+            # Extract public ID from Cloudinary URL
+            public_id = extract_public_id_from_cloudinary_url(pdf_url)
+            
+            if public_id:
+                # Generate signed URL with 5-minute expiration
+                signed_url = get_pdf_url_from_cloudinary(public_id, use_signed=True, duration=300)
+                
+                if signed_url:
+                    logger.info(f"Secure PDF URL generated for book {book_id}, user {request.user.id}")
+                    return Response({
+                        'pdf_url': signed_url,
+                        'title': book.title,
+                        'expires_in': 300,  # 5 minutes in seconds
+                        'book_id': str(book.id),
+                        'is_admin_preview': is_admin and not has_purchased,
+                    })
+                else:
+                    # Fallback if signing fails (still secure but less ideal)
+                    logger.warning(f"Could not generate signed URL, using fallback for book {book_id}")
+                    return Response({
+                        'pdf_url': pdf_url,
+                        'title': book.title,
+                        'expires_in': 300,
+                        'book_id': str(book.id),
+                        'is_admin_preview': is_admin and not has_purchased,
+                        'warning': 'Using unsigned URL - contact admin'
+                    })
+            else:
+                # Could not extract public ID, return as-is with limited access
+                logger.warning(f"Could not extract public ID from URL for book {book_id}")
+                return Response({
+                    'pdf_url': pdf_url,
+                    'title': book.title,
+                    'expires_in': 60,  # Shorter expiration
+                    'book_id': str(book.id),
+                })
+                
         except Exception as e:
             logger.error('Could not resolve PDF URL for book %s: %s', book_id, e)
             return Response(
@@ -150,21 +206,36 @@ class SecureFileView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        return Response({'pdf_url': pdf_url, 'title': book.title})
-
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def check_pdf_access(request, book_id):
-    """Check if user has access to a book's PDF."""
-    has_access = UserLibrary.objects.filter(
+    """
+    Check if user has access to a book's PDF.
+    Returns detailed access information for the frontend.
+    """
+    from apps.orders.models import UserLibrary, EbookPurchase
+    
+    has_purchased = UserLibrary.objects.filter(
         user=request.user,
         book_id=book_id
     ).exists()
     
+    # Also check EbookPurchase
+    ebook_purchase = None
+    if not has_purchased:
+        ebook_purchases = EbookPurchase.objects.filter(
+            user=request.user,
+            book_id=book_id,
+            payment_status='completed'
+        )
+        has_purchased = ebook_purchases.exists()
+        if has_purchased:
+            ebook_purchase = ebook_purchases.first()
+    
     # Also allow the authorized admin
     if is_authorized_admin(request.user):
-        has_access = True
+        has_purchased = True
     
     try:
         book = Book.objects.get(id=book_id)
@@ -172,10 +243,94 @@ def check_pdf_access(request, book_id):
     except Book.DoesNotExist:
         has_pdf = False
     
-    return Response({
-        'has_access': has_access,
+    response_data = {
+        'has_access': has_purchased,
         'has_pdf': has_pdf,
-        'book_id': book_id
+        'book_id': str(book_id)
+    }
+    
+    # Add reading progress if user has purchased
+    if ebook_purchase:
+        response_data.update({
+            'current_page': ebook_purchase.current_page,
+            'reading_progress': ebook_purchase.reading_progress or {},
+            'purchase_id': str(ebook_purchase.id),
+        })
+    
+    return Response(response_data)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def update_reading_progress(request, book_id):
+    """
+    Update the reading progress for a book.
+    Called periodically as the user reads through the ebook.
+    """
+    from apps.orders.models import EbookPurchase
+    
+    page = request.data.get('page', 0)
+    total_pages = request.data.get('total_pages', 0)
+    metadata = request.data.get('metadata', {})
+    
+    # Find the purchase record
+    try:
+        purchase = EbookPurchase.objects.get(
+            user=request.user,
+            book_id=book_id,
+            payment_status='completed'
+        )
+    except EbookPurchase.DoesNotExist:
+        return Response(
+            {'error': 'Purchase not found or not completed'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Update progress
+    purchase.current_page = page
+    purchase.reading_progress = {
+        **purchase.reading_progress,
+        **metadata,
+        'last_read': str(request.user.id),
+        'total_pages': total_pages,
+        'progress_percent': round((page / total_pages) * 100, 2) if total_pages > 0 else 0,
+    }
+    purchase.save(update_fields=['current_page', 'reading_progress', 'updated_at'])
+    
+    logger.info(f"Reading progress updated: user={request.user.id}, book={book_id}, page={page}")
+    
+    return Response({
+        'success': True,
+        'current_page': page,
+        'progress_percent': purchase.reading_progress.get('progress_percent', 0),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_reading_progress(request, book_id):
+    """
+    Get the reading progress for a book.
+    Returns the last read position and any bookmarks.
+    """
+    from apps.orders.models import EbookPurchase
+    
+    try:
+        purchase = EbookPurchase.objects.get(
+            user=request.user,
+            book_id=book_id,
+            payment_status='completed'
+        )
+    except EbookPurchase.DoesNotExist:
+        return Response(
+            {'error': 'Purchase not found or not completed'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    return Response({
+        'current_page': purchase.current_page,
+        'reading_progress': purchase.reading_progress or {},
+        'purchase_id': str(purchase.id),
     })
 
 

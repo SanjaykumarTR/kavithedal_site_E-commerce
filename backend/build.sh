@@ -12,7 +12,7 @@ set -o errexit  # Exit immediately on any error
 
 echo "─── Installing Python dependencies ───────────────────────────────────────"
 pip install --upgrade pip
-pip install --upgrade setuptools  # Required for razorpay and other packages
+pip install --upgrade setuptools
 pip install -r requirements.txt
 
 echo "─── Collecting static files ──────────────────────────────────────────────"

@@ -70,15 +70,21 @@ services:
       - key: DEFAULT_FROM_EMAIL
         sync: false       # Set in Render dashboard
 
-      # ── Razorpay ─────────────────────────────────────────────────────────
-      - key: RAZORPAY_KEY_ID
-        sync: false       # Set in Render dashboard (use rzp_live_... for production)
-
-      - key: RAZORPAY_KEY_SECRET
+      # ── Cashfree Payment Gateway ──────────────────────────────────────────
+      # Get credentials from https://merchant.cashfree.com → Developers → API Keys
+      - key: CASHFREE_APP_ID
         sync: false       # Set in Render dashboard
 
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false       # Set in Render dashboard — copy from Razorpay dashboard → Webhooks
+      - key: CASHFREE_SECRET_KEY
+        sync: false       # Set in Render dashboard
+
+      # 'sandbox' for testing, 'production' for live payments
+      - key: CASHFREE_ENV
+        value: "production"
+
+      # Frontend URL — used to build Cashfree return_url
+      - key: FRONTEND_URL
+        value: "https://kavithedal-frontend-sgki.onrender.com"
 
       # ── Admin Access ──────────────────────────────────────────────────────
       - key: ADMIN_EMAIL
@@ -125,7 +131,7 @@ services:
       - key: VITE_API_URL
         value: "https://kavithedal-web.onrender.com"
 
-      # Razorpay publishable key (safe to expose in frontend bundle)
-      # Use rzp_live_... for production, rzp_test_... for staging
-      - key: VITE_RAZORPAY_KEY_ID
-        sync: false       # Set in Render dashboard
+      # Cashfree SDK mode — must match CASHFREE_ENV in backend
+      # 'sandbox' for testing, 'production' for live payments
+      - key: VITE_CASHFREE_ENV
+        value: "production"

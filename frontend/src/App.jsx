@@ -21,6 +21,7 @@ import Reader from "./pages/Reader";
 import Library from "./pages/Library";
 import EbookPurchase from "./pages/EbookPurchase";
 import PurchaseSuccess from "./pages/PurchaseSuccess";
+import PaymentFailure from "./pages/PaymentFailure";
 import PhysicalPurchase from "./pages/PhysicalPurchase";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminLayout from "./components/admin/AdminLayout";
@@ -132,6 +133,16 @@ export default function App() {
             <>
               <Navbar />
               <PurchaseSuccess />
+              <Footer />
+            </>
+          }
+        />
+        <Route
+          path="/payment-failure"
+          element={
+            <>
+              <Navbar />
+              <PaymentFailure />
               <Footer />
             </>
           }

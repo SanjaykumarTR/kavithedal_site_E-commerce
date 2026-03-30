@@ -4,7 +4,7 @@ djangorestframework>=3.15,<4.0
 djangorestframework-simplejwt>=5.3,<6.0
 django-filter>=24.0,<25.0
 
-# ─── Package Tools (required by razorpay) ───────────────────────────────────────
+# ─── Package Tools ─────────────────────────────────────────────────────────────
 setuptools>=65.0
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -28,8 +28,9 @@ gunicorn>=21.0,<22.0
 # ─── Static Files (production) ────────────────────────────────────────────────
 whitenoise>=6.6,<7.0
 
-# ─── Payment Gateway ──────────────────────────────────────────────────────────
-razorpay>=1.4,<2.0
+# ─── Payment Gateway (Cashfree) ───────────────────────────────────────────────
+# requests is used to call Cashfree REST API directly (no official Python SDK needed)
+requests>=2.31,<3.0
 
 # ─── Cloud Storage (Cloudinary — persistent media on Render) ─────────────────
 # cloudinary: Official Cloudinary Python SDK

@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
-    <link rel="dns-prefetch" href="https://checkout.razorpay.com">
+    <link rel="dns-prefetch" href="https://sdk.cashfree.com">
 
     <!-- Non-render-blocking Google Fonts -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -19,8 +19,8 @@
       <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     </noscript>
 
-    <!-- Razorpay loaded deferred — not needed until user clicks Pay -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+    <!-- Cashfree JS SDK — loaded deferred, only needed when user initiates payment -->
+    <script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script>
   </head>
   <body>
     <div id="root"></div>

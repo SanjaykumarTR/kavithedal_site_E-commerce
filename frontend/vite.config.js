@@ -30,6 +30,15 @@ export default defineConfig({
     },
   },
 
+  // ─── PDF.js Worker Configuration ───────────────────────────────────────────
+  // Required for react-pdf to work properly
+  worker: {
+    format: 'es',
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist'],
+  },
+
   // ─── Production Build ───────────────────────────────────────────────────────
   build: {
     outDir: 'dist',
@@ -44,6 +53,7 @@ export default defineConfig({
             id.includes('node_modules/react-dom/') ||
             id.includes('node_modules/react-router-dom/')
           ) return 'vendor-react';
+          if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdf';
         },
       },
     },

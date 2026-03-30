@@ -245,6 +245,7 @@ class UserLibrary(models.Model):
 class EbookPurchase(models.Model):
     """
     eBook Purchase model - stores customer details for eBook purchases.
+    Enhanced with secure access token and payment status for ebook reading.
     """
     PAYMENT_STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -276,11 +277,33 @@ class EbookPurchase(models.Model):
         choices=PAYMENT_STATUS_CHOICES,
         default='pending'
     )
+    # Secure access token for PDF viewing
+    access_token = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text='Unique token for secure PDF access'
+    )
+    access_token_created = models.DateTimeField(null=True, blank=True)
+    access_token_expires = models.DateTimeField(null=True, blank=True)
+    # Cashfree order details
+    order_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Cashfree order ID for this purchase'
+    )
     # Payment gateway details
+    cashfree_order_id = models.CharField(max_length=100, blank=True, null=True)
+    cashfree_payment_id = models.CharField(max_length=100, blank=True, null=True)
     razorpay_order_id = models.CharField(max_length=100, blank=True, null=True)
     razorpay_payment_id = models.CharField(max_length=100, blank=True, null=True)
     razorpay_signature = models.CharField(max_length=200, blank=True, null=True)
     transaction_id = models.CharField(max_length=100, blank=True, null=True)
+    # Reading progress tracking
+    current_page = models.PositiveIntegerField(default=0)
+    reading_progress = models.JSONField(default=dict, blank=True)
     # Timestamps
     order_date = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -293,3 +316,61 @@ class EbookPurchase(models.Model):
     
     def __str__(self):
         return f"eBook Purchase {self.id} - {self.book.title} - {self.email}"
+    
+    def generate_access_token(self):
+        """Generate a unique access token for secure PDF viewing."""
+        import secrets
+        from datetime import timedelta
+        from django.utils import timezone
+        
+        self.access_token = secrets.token_urlsafe(32)
+        self.access_token_created = timezone.now()
+        self.access_token_expires = timezone.now() + timedelta(minutes=30)  # 30 minutes validity
+        self.save(update_fields=['access_token', 'access_token_created', 'access_token_expires'])
+        return self.access_token
+    
+    def is_access_token_valid(self):
+        """Check if the current access token is still valid."""
+        from django.utils import timezone
+        if not self.access_token or not self.access_token_expires:
+            return False
+        return timezone.now() < self.access_token_expires
+    
+    def update_reading_progress(self, page, metadata=None):
+        """Update the user's reading progress."""
+        self.current_page = page
+        if metadata:
+            self.reading_progress.update(metadata)
+        self.save(update_fields=['current_page', 'reading_progress', 'updated_at'])
+
+
+class CartCheckoutSession(models.Model):
+    """
+    Stores cart items server-side while the user is redirected to Cashfree.
+    Prevents frontend tampering — items and amounts are authoritative from here.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='cart_sessions'
+    )
+    cashfree_order_id = models.CharField(max_length=100, unique=True)
+    # JSON snapshot of cart: [{book_id, qty, price, book_type, title}, ...]
+    items = models.JSONField()
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('completed', 'Completed'), ('failed', 'Failed')],
+        default='pending'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'cart_checkout_sessions'
+        verbose_name = 'Cart Checkout Session'
+        verbose_name_plural = 'Cart Checkout Sessions'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"CartSession {self.cashfree_order_id} — {self.user.email} ({self.status})"
