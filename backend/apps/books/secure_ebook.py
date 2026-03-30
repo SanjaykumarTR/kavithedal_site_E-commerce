@@ -48,39 +48,46 @@ def generate_cloudinary_signature(public_id, transformation='', duration=300):
     # Calculate expiration time
     expires_at = int((timezone.now() + timedelta(seconds=duration)).timestamp())
     
-    # Build the string to sign
-    # Format: folder/filename.jpg?jwt=<token>
-    # For signed URLs: timestamp/public_id
-    to_sign = f"{expires_at}/{public_id}"
-    
-    # Generate HMAC signature
-    signature = hmac.new(
-        config['api_secret'].encode('utf-8'),
-        to_sign.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    # Build signed URL
-    base_url = f"https://res.cloudinary.com/{config['cloud_name']}/raw/upload"
-    
-    # Add transformation if provided
-    if transformation:
-        signed_url = f"{base_url}/{transformation}/fl_signerate/{public_id}"
-    else:
-        signed_url = f"{base_url}/fl_signerate/{public_id}"
-    
-    # Add signature and expiration
-    signed_url = f"{signed_url}?--expires-at={expires_at}&--signature={signature}"
-    
-    logger.info(f"Generated signed URL for {public_id}, expires in {duration} seconds")
-    
-    return {
-        'signed_url': signed_url,
-        'expires_at': expires_at,
-        'signature': signature,
-        'public_id': public_id,
-        'duration_seconds': duration,
-    }
+    # For raw files, we can use the simpler approach with Cloudinary SDK
+    try:
+        import cloudinary
+        from cloudinary.utils import cloudinary_url
+        
+        # Use Cloudinary's built-in signed URL generation
+        url, options = cloudinary_url(
+            public_id,
+            resource_type='raw',
+            sign_url=True,
+            secure=True,
+            sign=True,
+            expires_at=expires_at
+        )
+        
+        logger.info(f"Generated Cloudinary signed URL for {public_id}")
+        
+        return {
+            'signed_url': url,
+            'expires_at': expires_at,
+            'signature': options.get('signature', ''),
+            'public_id': public_id,
+            'duration_seconds': duration,
+        }
+    except Exception as e:
+        logger.warning(f"Cloudinary SDK signing failed: {e}, using fallback")
+        
+        # Fallback: Return simple unsigned URL for now
+        # This will work if the file is set to 'authenticated' or 'public'
+        base_url = f"https://res.cloudinary.com/{config['cloud_name']}/raw/upload"
+        unsigned_url = f"{base_url}/{public_id}"
+        
+        return {
+            'signed_url': unsigned_url,
+            'expires_at': expires_at,
+            'signature': 'fallback',
+            'public_id': public_id,
+            'duration_seconds': duration,
+            'unsigned': True,
+        }
 
 
 def verify_cloudinary_signature(public_id, expires_at_str, signature):
@@ -162,11 +169,26 @@ def extract_public_id_from_cloudinary_url(url):
         return None
     
     try:
-        # URL format: https://res.cloudinary.com/{cloud}/raw/upload/{public_id}
+        # Try different URL formats
+        # Format 1: https://res.cloudinary.com/{cloud}/raw/upload/{public_id}
         parts = url.split('/raw/upload/')
         if len(parts) > 1:
             public_id = parts[1].split('?')[0]  # Remove query params
             return public_id
+        
+        # Format 2: https://res.cloudinary.com/{cloud}/image/upload/{public_id}
+        parts = url.split('/image/upload/')
+        if len(parts) > 1:
+            public_id = parts[1].split('?')[0]  # Remove query params
+            return public_id
+        
+        # Format 3: Handle auto-upload format
+        # For uploads without explicit folder, try to extract after version/folder
+        import re
+        match = re.search(r'/upload/(?:v\d+/)?(.+?)(?:\?|$)', url)
+        if match:
+            return match.group(1)
+            
     except Exception as e:
         logger.error(f"Failed to extract public ID from URL: {e}")
     

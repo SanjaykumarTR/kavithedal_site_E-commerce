@@ -167,16 +167,25 @@ class SecureFileView(APIView):
             
             if public_id:
                 # Generate signed URL with 5-minute expiration
-                signed_url = get_pdf_url_from_cloudinary(public_id, use_signed=True, duration=300)
+                # Try signed URL first, fallback to unsigned
+                signed_result = get_pdf_url_from_cloudinary(public_id, use_signed=True, duration=300)
                 
-                if signed_url:
-                    logger.info(f"Secure PDF URL generated for book {book_id}, user {request.user.id}")
+                if signed_result:
+                    pdf_url = signed_result.get('signed_url')
+                    is_fallback = signed_result.get('unsigned', False)
+                    
+                    if is_fallback:
+                        logger.warning(f"Using unsigned URL (Cloudinary signing not available) for book {book_id}")
+                    else:
+                        logger.info(f"Secure PDF URL generated for book {book_id}, user {request.user.id}")
+                    
                     return Response({
-                        'pdf_url': signed_url,
+                        'pdf_url': pdf_url,
                         'title': book.title,
-                        'expires_in': 300,  # 5 minutes in seconds
+                        'expires_in': 300,
                         'book_id': str(book.id),
                         'is_admin_preview': is_admin and not has_purchased,
+                        'is_fallback': is_fallback,
                     })
                 else:
                     # Fallback if signing fails (still secure but less ideal)
