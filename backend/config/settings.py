@@ -74,8 +74,13 @@ ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()]
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
-# Custom domain — always allowed regardless of env var value
-for _custom_host in ('kavithedal.com', 'www.kavithedal.com'):
+# Custom domains — always allowed regardless of env var value.
+# Add every domain (with and without www) that the frontend or admin may use.
+for _custom_host in (
+    'kavithedal.com', 'www.kavithedal.com',
+    'kavithedalpublication.store', 'www.kavithedalpublication.store',
+    'kavithedal-web.onrender.com',
+):
     if _custom_host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(_custom_host)
 
@@ -275,8 +280,16 @@ SIMPLE_JWT = {
 # Set CORS_ALLOWED_ORIGINS as comma-separated URLs in env, e.g.:
 #   https://kavithedal.onrender.com,https://kavithedal.com
 _cors_env = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+# Always include the production custom domain and both Render URLs so that
+# a missing or misconfigured env var never silently blocks the live site.
+_cors_always = [
+    'https://www.kavithedalpublication.store',
+    'https://kavithedalpublication.store',
+    'https://kavithedal-frontend-sgki.onrender.com',
+]
 if _cors_env:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()]
+    _cors_from_env = [o.strip() for o in _cors_env.split(',') if o.strip()]
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(_cors_from_env + _cors_always))
     CORS_ALLOW_ALL_ORIGINS = False
 else:
     # Development fallback — allow all only when DEBUG=True
@@ -285,7 +298,7 @@ else:
         'http://localhost:5173',
         'http://localhost:3000',
         'http://127.0.0.1:5173',
-    ]
+    ] + _cors_always
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -304,14 +317,20 @@ CORS_ALLOW_HEADERS = [
 # ─── CSRF Trusted Origins ─────────────────────────────────────────────────────
 # Django 4.0+ requires CSRF_TRUSTED_ORIGINS for POST requests behind a proxy.
 # Render terminates SSL at the load balancer, so the Origin header must be trusted.
-_csrf_origins = []
+_csrf_origins = [
+    'https://www.kavithedalpublication.store',
+    'https://kavithedalpublication.store',
+    'https://kavithedal-web.onrender.com',
+    'https://kavithedal-frontend-sgki.onrender.com',
+]
 if RENDER_EXTERNAL_HOSTNAME:
-    _csrf_origins.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
+    _reh = f'https://{RENDER_EXTERNAL_HOSTNAME}'
+    if _reh not in _csrf_origins:
+        _csrf_origins.append(_reh)
 for _h in ALLOWED_HOSTS:
     if _h not in ('localhost', '127.0.0.1', '*') and f'https://{_h}' not in _csrf_origins:
         _csrf_origins.append(f'https://{_h}')
-if _csrf_origins:
-    CSRF_TRUSTED_ORIGINS = _csrf_origins
+CSRF_TRUSTED_ORIGINS = _csrf_origins
 
 
 # ─── Production Security Headers ──────────────────────────────────────────────
