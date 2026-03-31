@@ -343,6 +343,65 @@ def get_reading_progress(request, book_id):
     })
 
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def pdf_url_diagnostic(request, book_id):
+    """
+    Diagnostic endpoint to debug PDF URL issues.
+    Returns the raw Cloudinary URL and public ID extraction results.
+    """
+    from apps.books.secure_ebook import extract_public_id_from_cloudinary_url, get_cloudinary_config
+    
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response({'error': 'Book not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    result = {
+        'book_id': str(book.id),
+        'book_title': book.title,
+        'has_pdf_file': bool(book.pdf_file),
+    }
+    
+    if book.pdf_file:
+        try:
+            # Get the raw URL
+            raw_url = book.pdf_file.url
+            result['raw_pdf_url'] = raw_url
+            result['pdf_file_name'] = book.pdf_file.name
+            
+            # Extract public ID
+            public_id = extract_public_id_from_cloudinary_url(raw_url)
+            result['extracted_public_id'] = public_id
+            
+            # Get Cloudinary config status
+            config = get_cloudinary_config()
+            result['cloudinary_configured'] = bool(config['cloud_name'] and config['api_key'] and config['api_secret'])
+            result['cloud_name'] = config.get('cloud_name', 'NOT SET')
+            
+            # Analyze URL format
+            if '/raw/upload/' in raw_url:
+                result['url_format'] = 'raw/upload'
+            elif '/image/upload/' in raw_url:
+                result['url_format'] = 'image/upload'
+            elif '/auto/upload/' in raw_url:
+                result['url_format'] = 'auto/upload'
+            else:
+                result['url_format'] = 'unknown'
+            
+            # Check for query params
+            if '?' in raw_url:
+                result['has_query_params'] = True
+                result['query_part'] = raw_url.split('?')[1][:100]
+            else:
+                result['has_query_params'] = False
+                
+        except Exception as e:
+            result['error'] = str(e)
+    
+    return Response(result)
+
+
 class BookSubmissionViewSet(viewsets.ModelViewSet):
     """
     ViewSet for BookSubmission model.

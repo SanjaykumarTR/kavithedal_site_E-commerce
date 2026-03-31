@@ -2,7 +2,7 @@
 Admin configuration for Orders app.
 """
 from django.contrib import admin
-from .models import DeliveryZone, Order, Payment, UserLibrary, EbookPurchase
+from .models import DeliveryZone, Order, Payment, UserLibrary, EbookPurchase, CartCheckoutSession
 
 
 @admin.register(DeliveryZone)
@@ -28,7 +28,7 @@ class OrderAdmin(admin.ModelAdmin):
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['id', 'order', 'amount', 'status', 'payment_method', 'created_at']
     list_filter = ['status', 'payment_method', 'created_at']
-    search_fields = ['order__id', 'razorpay_payment_id', 'transaction_id']
+    search_fields = ['order__id', 'transaction_id']
     readonly_fields = ['id', 'created_at', 'updated_at']
 
 
@@ -47,3 +47,11 @@ class EbookPurchaseAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'book__title', 'email', 'phone']
     readonly_fields = ['id', 'order_date', 'updated_at']
     raw_id_fields = ['user', 'book']
+
+
+@admin.register(CartCheckoutSession)
+class CartCheckoutSessionAdmin(admin.ModelAdmin):
+    list_display = ['cashfree_order_id', 'user', 'total_amount', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    search_fields = ['cashfree_order_id', 'user__email']
+    readonly_fields = ['id', 'created_at']

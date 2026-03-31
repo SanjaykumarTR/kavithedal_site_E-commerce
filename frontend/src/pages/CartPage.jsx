@@ -230,7 +230,7 @@ export default function CartPage() {
                 : "Cashfree மூலம் பணம் செலுத்து"}
             </button>
 
-            <div className="razorpay-info">
+            <div className="payment-info">
               <span className="secure-icon">🔒</span>
               <span>100% Secure Payment via Cashfree</span>
             </div>
