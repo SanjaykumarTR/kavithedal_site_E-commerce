@@ -45,6 +45,13 @@ def _cashfree_configured():
 
 
 def _cf_base_url():
+    """Get the base URL for Cashfree API - uses CASHFREE_BASE_URL env var if set."""
+    # If explicitly set, use that URL
+    base_url = getattr(settings, 'CASHFREE_BASE_URL', '')
+    if base_url:
+        return base_url.rstrip('/')
+    
+    # Otherwise fall back to environment-based selection
     env = getattr(settings, 'CASHFREE_ENV', 'sandbox')
     return _CF_PROD_URL if env == 'production' else _CF_SANDBOX_URL
 
@@ -94,14 +101,32 @@ def _cf_create_order(cf_order_id, amount, customer_id, customer_email,
     if note:
         payload['order_note'] = str(note)[:50]
 
-    resp = http_requests.post(
-        f'{_cf_base_url()}/orders',
-        json=payload,
-        headers=_cf_headers(),
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    # Debug: Log the request
+    logger.info(f'Cashfree create order request: order_id={cf_order_id}, amount={amount}')
+    logger.info(f'Cashfree base URL: {_cf_base_url()}')
+    logger.info(f'Cashfree app_id: {getattr(settings, "CASHFREE_APP_ID", "NOT SET")[:10]}...')
+
+    try:
+        resp = http_requests.post(
+            f'{_cf_base_url()}/orders',
+            json=payload,
+            headers=_cf_headers(),
+            timeout=30,
+        )
+        logger.info(f'Cashfree response status: {resp.status_code}')
+        
+        if resp.status_code >= 400:
+            logger.error(f'Cashfree API error response: {resp.text}')
+            resp.raise_for_status()
+        
+        return resp.json()
+    except http_requests.exceptions.HTTPError as exc:
+        logger.error(f'Cashfree HTTP error: {exc}')
+        logger.error(f'Response body: {exc.response.text if exc.response else "No response"}')
+        raise
+    except Exception as exc:
+        logger.error(f'Cashfree request failed: {exc}')
+        raise
 
 
 def _cf_get_order(cf_order_id):

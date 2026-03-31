@@ -356,6 +356,10 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 CASHFREE_APP_ID = os.environ.get('CASHFREE_APP_ID', '')
 CASHFREE_SECRET_KEY = os.environ.get('CASHFREE_SECRET_KEY', '')
 CASHFREE_WEBHOOK_SECRET = os.environ.get('CASHFREE_WEBHOOK_SECRET', '')
+
+# Cashfree Base URL - sandbox for testing, production for live
+CASHFREE_BASE_URL = os.environ.get('CASHFREE_BASE_URL', '')
+
 # 'sandbox' for testing, 'production' for live payments
 CASHFREE_ENV = os.environ.get('CASHFREE_ENV', 'sandbox')
 

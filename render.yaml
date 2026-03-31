@@ -72,6 +72,10 @@ services:
 
       # ── Cashfree Payment Gateway ──────────────────────────────────────────
       # Get credentials from https://merchant.cashfree.com → Developers → API Keys
+      # Base URL - sandbox for testing, production for live
+      - key: CASHFREE_BASE_URL
+        sync: false       # Set in Render dashboard: https://sandbox.cashfree.com/pg or https://api.cashfree.com/pg
+
       - key: CASHFREE_APP_ID
         sync: false       # Set in Render dashboard
 
