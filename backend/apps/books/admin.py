@@ -5,6 +5,7 @@ import logging
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from django.utils.html import mark_safe
 from .models import Book, Category, BookSubmission, ContactMessage
 
@@ -41,7 +42,20 @@ class BookAdminForm(forms.ModelForm):
         for field_name in ('cover_image', 'pdf_file'):
             if self.cleaned_data.get(field_name) is False:
                 self.cleaned_data[field_name] = ''
-        super()._post_clean()
+        try:
+            super()._post_clean()
+        except ValidationError:
+            raise
+        except Exception as e:
+            # Cloudinary upload or other storage errors during form processing.
+            # Convert to ValidationError so Django shows a user-friendly form
+            # error instead of crashing with a 500.
+            logger.error('BookAdminForm._post_clean storage error: %s', e, exc_info=True)
+            raise ValidationError(
+                f'File upload failed: {e}. '
+                'Check that CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and '
+                'CLOUDINARY_API_SECRET are set correctly in Render environment variables.'
+            )
 
 
 @admin.register(Book)
@@ -163,8 +177,12 @@ class BookAdmin(admin.ModelAdmin):
                     'BookAdmin fallback save also failed for "%s": %s',
                     obj.title, inner_exc, exc_info=True,
                 )
-                messages.error(request, f'Could not save book: {inner_exc}')
-                raise inner_exc
+                messages.error(
+                    request,
+                    f'❌ Could not save book at all: {inner_exc}. '
+                    'Check Render logs for details.'
+                )
+                return  # do not re-raise — avoids 500, returns to admin list
             messages.warning(
                 request,
                 f'❌ Book saved WITHOUT image/PDF — file upload failed: {exc}. '
