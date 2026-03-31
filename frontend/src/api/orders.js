@@ -10,13 +10,28 @@ import api from './axios';
  * @param {string} paymentSessionId  - returned by the backend create-order endpoints
  */
 export function initiateCashfreeCheckout(paymentSessionId) {
+  console.log('=== Cashfree Checkout Debug ===');
+  console.log('paymentSessionId:', paymentSessionId);
+  console.log('paymentSessionId type:', typeof paymentSessionId);
+  console.log('paymentSessionId length:', paymentSessionId ? paymentSessionId.length : 0);
+  console.log('window.Cashfree exists:', !!window.Cashfree);
+  
+  if (!paymentSessionId) {
+    throw new Error('paymentSessionId is empty or undefined');
+  }
+  
   if (!window.Cashfree) {
     throw new Error(
       'Cashfree SDK is not loaded yet. Please wait a moment and try again.'
     );
   }
+  
   const mode = import.meta.env.VITE_CASHFREE_ENV || 'sandbox';
+  console.log('Cashfree mode:', mode);
+  
   const cashfree = window.Cashfree({ mode });
+  console.log('Calling cashfree.checkout with paymentSessionId:', paymentSessionId);
+  
   cashfree.checkout({
     paymentSessionId,
     redirectTarget: '_self',   // redirect in the same tab
