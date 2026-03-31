@@ -26,7 +26,7 @@ export function initiateCashfreeCheckout(paymentSessionId) {
     );
   }
   
-  const mode = import.meta.env.VITE_CASHFREE_ENV || 'sandbox';
+  const mode = import.meta.env.VITE_CASHFREE_ENV || 'production';
   console.log('Cashfree mode:', mode);
   
   const cashfree = window.Cashfree({ mode });
@@ -103,7 +103,7 @@ export const getUserOrders = async () => {
 
 /** Returns the full URL for the secure PDF endpoint (used by Reader.jsx). */
 export const getSecurePdfUrl = (bookId) => {
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const base = import.meta.env.VITE_API_URL || 'https://kavithedal-web.onrender.com';
   return `${base}/api/books/${bookId}/pdf/`;
 };
 
