@@ -21,22 +21,30 @@
 postgresql://postgres.dybmcyueojifigodnnhz:Thulir%402025@db.dybmcyueojifigodnnhz.supabase.co:6543/postgres
 ```
 
-### 🔑 URL Breakdown:
-| Component | Your Value | Notes |
-|-----------|------------|-------|
-| Protocol | `postgresql://` | ✅ Correct |
-| Username | `postgres.dybmcyueojifigodnnhz` | ✅ Your project ref with "postgres." prefix |
-| Password | `Thulir%402025` | ✅ `@` encoded as `%40` |
-| Host | `db.dybmcyueojifigodnnhz.supabase.co` | ✅ NOT `aws-1-ap-southeast-1.pooler.supabase.com` |
-| Port | `6543` | ✅ Connection Pooler port (NOT 5432) |
-| Database | `postgres` | ✅ Default database |
+### 🔑 CRITICAL: Your Project's Hostname is:
+```
+db.dybmcyueojifigodnnhz.supabase.co
+```
 
-### ⚠️ WRONG URLs (DO NOT USE):
+### ❌ WRONG (Do NOT use):
 ```
-❌ postgresql://postgres.dybmcyueojifigodnnhz:Thulir@2025@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
-❌ postgresql://postgres.dybmcyueojifigodnnhz:Thulir@2025@db.dybmcyueojifigodnnhz.supabase.co:5432/postgres
-❌ postgresql://postgres.dybmcyueojifigodnnhz:Thulir@2025@localhost:6543/postgres
+aws-1-ap-southeast-1.pooler.supabase.com  ❌ WRONG HOSTNAME!
 ```
+
+### ⚠️ IMPORTANT: The hostname `aws-1-ap-southeast-1.pooler.supabase.com` does NOT belong to your project!
+
+Your Supabase project ref is: `dybmcyueojifigodnnhz`
+Your correct hostname is: `db.dybmcyueojifigodnnhz.supabase.co`
+
+---
+
+| Component | Your Wrong URL | CORRECT URL |
+|-----------|----------------|-------------|
+| Protocol | `postgresql://` | ✅ Same |
+| Username | `postgres.dybmcyueojifigodnnhz` | ✅ Same |
+| Password | `Thulir%402025` | ✅ Same |
+| **Host** | `aws-1-ap-southeast-1.pooler.supabase.com` | **`db.dybmcyueojifigodnnhz.supabase.co`** |
+| Port | 5432 | **6543** |
 
 ---
 
@@ -146,34 +154,43 @@ else:
 
 ---
 
-## 📊 IP WHITELISTING IN SUPABASE
+## 🚨 CRITICAL FIX: IP WHITELISTING (NETWORK UNREACHABLE ERROR)
 
-### For Render Deployment:
+**The "Network is unreachable" error means Supabase is blocking Render's IPs.**
+
+### FIX NOW:
 
 1. **Go to Supabase Dashboard**
-   - Open your project: `https://supabase.com/dashboard/project/dybmcyueojifigodnnhz`
+   - URL: `https://supabase.com/dashboard/project/dybmcyueojifigodnnhz/settings/network`
 
-2. **Navigate to Settings**
-   - Click Settings (gear icon) → Network
+2. **Find "IP Whitelist" section**
 
-3. **Add IP Allow List**
-   
-   **Option A - Allow All (Easiest for testing):**
+3. **Add these IPs (Include BOTH IPv4 and IPv6):**
    ```
    0.0.0.0/0
+   ::/0
    ```
    
-   **Option B - Allow Specific (More Secure):**
-   ```
-   # Find your Render service's IP:
-   # In Render Dashboard → Your Backend Service → Details
-   # Look for "IPv4" address
-   
-   # Add these IPs:
-   YOUR_RENDER_IP/32
-   ```
+   OR simply click **"Allow all IPs"** button if available
 
-4. **Wait 5 minutes** for changes to propagate
+4. **Wait 5-10 minutes** for changes to propagate
+
+5. **Redeploy your Render backend**
+
+### Why This Happens:
+- Render uses dynamic IPs (both IPv4 and IPv6)
+- Your error shows IPv6: `2406:da18:243:741b:548e:d160:6201:df01`
+- Supabase blocks unknown IPs by default
+
+### Alternative: Use Direct Connection (Port 5432)
+
+If IP whitelisting doesn't work, try direct connection:
+
+```
+postgresql://postgres.dybmcyueojifigodnnhz:Thulir%402025@db.dybmcyueojifigodnnhz.supabase.co:5432/postgres
+```
+
+Direct connection sometimes bypasses network issues.
 
 ---
 
