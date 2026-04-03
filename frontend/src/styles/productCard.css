@@ -451,12 +451,27 @@
 
   .dual-prices {
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
 
   .price-item {
     flex-direction: row;
-    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .price-type {
+    font-size: 10px;
+    min-width: 48px;
+  }
+
+  .price-item .price {
+    font-size: 13px;
+  }
+
+  .price-item .old-price {
+    font-size: 10px;
   }
 }
 
@@ -492,15 +507,36 @@
     padding: 3px 8px;
   }
 
-  .price {
-    font-size: 15px;
+  /* Price: stack label on its own line, price below */
+  .dual-prices {
+    gap: 6px;
   }
 
-  .old-price {
-    font-size: 11px;
+  .price-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
   }
 
   .price-type {
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  .price-item .price {
+    font-size: 14px;
+  }
+
+  .price-item .old-price {
+    font-size: 10px;
+  }
+
+  /* Single price (non-dual) */
+  .price {
+    font-size: 14px;
+  }
+
+  .old-price {
     font-size: 11px;
   }
 
