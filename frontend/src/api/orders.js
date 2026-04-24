@@ -46,8 +46,8 @@ export function initiatePayuCheckout(paymentParams) {
   // Determine PayU environment
   const env = import.meta.env.VITE_PAYU_ENV || 'sandbox';
   const payuUrl = env === 'production'
-    ? 'https://api.juspay.in/'
-    : 'https://sandbox.juspay.in/';
+    ? 'https://secure.payu.in/_payment'
+    : 'https://test.payu.in/_payment';
 
   console.log('PayU environment:', env);
   console.log('PayU URL:', payuUrl);
