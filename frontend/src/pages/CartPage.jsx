@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CartContext } from "../context/CartContext";
 import { LanguageContext } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import { createCartCheckout, initiatePayuCheckout } from "../api/orders";
+import { createCartCheckout, initiateCashfreeCheckout } from "../api/orders";
 import "../styles/cart.css";
 
 export default function CartPage() {
@@ -62,19 +62,19 @@ export default function CartPage() {
         user?.phone || ""
       );
 
-       // Simulation mode (no PayU configured on backend)
-       if (data.status === "completed") {
-         cart.forEach((item) => removeFromCart(item.id));
-         navigate("/user-dashboard");
-         return;
-       }
+// Simulation mode (no Cashfree configured on backend)
+        if (data.status === "completed") {
+          cart.forEach((item) => removeFromCart(item.id));
+          navigate("/user-dashboard");
+          return;
+        }
 
-       // Production — redirect to PayU
-       if (data.payu_order_id) {
-         // Cart is cleared on the success page after verification
-         initiatePayuCheckout(data);
-         return;
-       }
+        // Production — redirect to Cashfree
+        if (data.payment_session_id) {
+          // Cart is cleared on the success page after verification
+          initiateCashfreeCheckout(data);
+          return;
+        }
 
       alert(language === "en" ? "Payment initiation failed" : "Payment failed");
     } catch (err) {
@@ -221,19 +221,19 @@ export default function CartPage() {
               onClick={handlePayment}
               disabled={loading}
             >
-               {loading
-                 ? language === "en"
-                   ? "Redirecting..."
-                   : "திருப்பிவிடுகிறது..."
-                 : language === "en"
-                 ? "Pay Now with PayU"
-                 : "PayU மூலம் பணம் செலுத்து"}
+{loading
+                  ? language === "en"
+                    ? "Redirecting..."
+                    : "திருப்பிவிடுகிறது..."
+                  : language === "en"
+                  ? "Pay Now with Cashfree"
+                  : "Cashfree மூலம் பணம் செலுத்து"}
             </button>
 
-             <div className="payment-info">
-               <span className="secure-icon">🔒</span>
-               <span>100% Secure Payment via PayU</span>
-             </div>
+<div className="payment-info">
+                <span className="secure-icon">🔒</span>
+                <span>100% Secure Payment via Cashfree</span>
+              </div>
 
             <div className="payment-methods">
               <span>UPI</span>

@@ -1,5 +1,5 @@
 """
-Views for Orders App — PayU payment integration.
+Views for Orders App — Cashfree payment integration.
 """
 import hashlib
 import hmac
@@ -27,91 +27,87 @@ from .serializers import (
 
 logger = logging.getLogger('apps')
 
-# ============= PAYU UTILITY FUNCTIONS =============
+# ============= CASHFREE UTILITY FUNCTIONS =============
 
-def _payu_configured():
-    """Return True when PayU credentials are set in env."""
+def _cashfree_configured():
+    """Return True when Cashfree credentials are set in env."""
     return bool(
-        getattr(settings, 'PAYU_KEY', '') and
-        getattr(settings, 'PAYU_SALT', '')
+        getattr(settings, 'CASHFREE_APP_ID', '') and
+        getattr(settings, 'CASHFREE_SECRET_KEY', '')
     )
 
 
-def _payu_base_url():
-    """Get PayU base URL based on environment."""
-    env = getattr(settings, 'PAYU_ENV', 'sandbox')
-    base_url = getattr(settings, 'PAYU_BASE_URL', '')
-    if base_url:
-        return base_url.rstrip('/')
-    # Default: use sandbox or production
-    return 'https://sandbox.juspay.in' if env == 'sandbox' else 'https://api.juspay.in'
+def _cashfree_headers():
+    """Get Cashfree API headers."""
+    return {
+        'x-api-version': '2023-08-01',
+        'Content-Type': 'application/json',
+        'x-client-id': getattr(settings, 'CASHFREE_APP_ID', ''),
+        'x-client-secret': getattr(settings, 'CASHFREE_SECRET_KEY', ''),
+    }
 
 
-def _generate_payu_hash(key, txnid, amount, productinfo, firstname, email, salt, **kwargs):
+def _cf_create_order(order_id, amount, customer_details, return_url):
     """
-    Generate PayU SHA-512 hash.
-
-    Format: key|txnid|amount|productinfo|firstname|email|||||||||||salt
-
-    Additional optional fields: udf1-udf5 (user-defined fields)
-
+    Create a Cashfree payment order.
+    
     Args:
-        key: PayU merchant key
-        txnid: Transaction ID (must be unique)
-        amount: Transaction amount (2 decimal places)
-        productinfo: Product description
-        firstname: Customer's first name
-        email: Customer's email
-        salt: PayU merchant salt
-        **kwargs: Optional fields (udf1-udf5)
-
+        order_id: Unique order identifier
+        amount: Amount to charge
+        customer_details: Dict with customer_id, name, email, phone
+        return_url: URL to redirect after payment
+    
     Returns:
-        str: SHA-512 hash string
+        dict with payment_session_id or error
     """
-    # Ensure amount has 2 decimal places
-    amount_str = f"{float(amount):.2f}"
+    base_url = getattr(settings, 'CASHFREE_BASE_URL', 'https://sandbox.cashfree.com/pg')
+    url = f"{base_url}/orders"
+    
+    payload = {
+        'order_id': str(order_id),
+        'order_amount': float(amount),
+        'order_currency': 'INR',
+        'customer_details': customer_details,
+        'order_meta': {
+            'return_url': return_url,
+            'notify_url': f"{settings.BACKEND_URL}/api/payment/webhook/"
+        }
+    }
+    
+    try:
+        response = http_requests.post(url, json=payload, headers=_cashfree_headers())
+        response.raise_for_status()
+        data = response.json()
+        logger.info(f"Cashfree order created: order_id={order_id}, cf_order_id={data.get('cf_order_id')}")
+        return data
+    except http_requests.exceptions.RequestException as e:
+        logger.error(f"Cashfree order creation failed: {e}")
+        return {'error': str(e)}
 
-    # Build hash string in PayU format
-    hash_string = (
-        f"{key}|{txnid}|{amount_str}|{productinfo}|{firstname}|{email}"
-        f"|||||||||||{salt}"
-    )
 
-    # Generate SHA-512 hash
-    generated_hash = hashlib.sha512(hash_string.encode('utf-8')).hexdigest().lower()
+def _cf_get_order(order_id):
+    """Get Cashfree order status."""
+    base_url = getattr(settings, 'CASHFREE_BASE_URL', 'https://sandbox.cashfree.com/pg')
+    url = f"{base_url}/orders/{order_id}"
+    
+    try:
+        response = http_requests.get(url, headers=_cashfree_headers())
+        response.raise_for_status()
+        return response.json()
+    except http_requests.exceptions.RequestException as e:
+        logger.error(f"Cashfree get order failed: {e}")
+        return None
 
-    logger.info(f"PayU hash generated: txnid={txnid}, hash={generated_hash[:20]}...")
-    return generated_hash
 
-
-def _generate_txnid(prefix, uid):
-    """
-    Generate a unique PayU transaction ID.
-
-    Format: kv-{prefix}-{unique_hex}
-
-    PayU limits: max 50 chars, alphanumeric + hyphen + underscore only.
-
-    Args:
-        prefix: 'eb' (ebook), 'ph' (physical), 'ct' (cart)
-        uid: UUID or unique identifier
-
-    Returns:
-        str: Transaction ID
-    """
+def _generate_order_id(prefix, uid):
+    """Generate a unique order ID for Cashfree."""
     hex_part = str(uid).replace('-', '')[:20]
     return f'kv-{prefix}-{hex_part}'
 
 
-def _payu_make_order_id(prefix, uid):
-    """Alias for _generate_txnid for backward compatibility."""
-    return _generate_txnid(prefix, uid)
-
-
 def _normalize_phone(phone):
-    """Normalize phone number for PayU (accepts various formats)."""
+    """Normalize phone number for Cashfree."""
     phone = str(phone).strip().replace(' ', '').replace('-', '').replace('+', '')
-    # Remove country code if present (PayU typically expects 10-digit)
     if phone.startswith('91') and len(phone) == 12:
         phone = phone[2:]
     return phone[:10] or '9999999999'
@@ -253,10 +249,10 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def simulate_payment(self, request, pk=None):
-        """Simulate payment — only available when PayU is NOT configured (local dev)."""
-        if _payu_configured():
+        """Simulate payment — only available when Cashfree is NOT configured (local dev)."""
+        if _cashfree_configured():
             return Response(
-                {'error': 'Payment simulation is not available when PayU is configured.'},
+                {'error': 'Payment simulation is not available when Cashfree is configured.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         order = self.get_object()
@@ -267,8 +263,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
         Payment.objects.create(
             order=order,
-            payu_order_id=f'sim_{order.id}',
-            payu_payment_id=f'sim_pay_{order.id}',
+            cashfree_order_id=f'sim_{order.id}',
+            cashfree_payment_id=f'sim_pay_{order.id}',
             amount=order.total_price,
             status='completed',
             payment_method='simulated',
@@ -374,14 +370,14 @@ class UserLibraryViewSet(viewsets.ModelViewSet):
         return Response({'has_access': has_access, 'book_id': book_id})
 
 
-# ============= PAYU PAYMENT VIEWS =============
+# ============= CASHFREE PAYMENT VIEWS =============
 
 class CreateOrderView(APIView):
     """
-    Create a PayU payment order for a single physical or ebook purchase.
+    Create a Cashfree payment order for a single physical or ebook purchase.
 
-    Simulation mode (no PayU keys): auto-completes the order instantly.
-    Production mode: returns PayU payment parameters for form submission.
+    Simulation mode (no Cashfree keys): auto-completes the order instantly.
+    Production mode: returns Cashfree payment_session_id for SDK checkout.
 
     POST /api/orders/create-order/
     """
@@ -452,12 +448,12 @@ class CreateOrderView(APIView):
             estimated_delivery_date=estimated_delivery_date,
         )
 
-        # Simulation mode (local dev without PayU keys)
-        if not _payu_configured():
+        # Simulation mode (local dev without Cashfree keys)
+        if not _cashfree_configured():
             Payment.objects.create(
                 order=order,
-                payu_order_id=f'sim_{order.id}',
-                payu_payment_id=f'sim_pay_{order.id}',
+                cashfree_order_id=f'sim_{order.id}',
+                cashfree_payment_id=f'sim_pay_{order.id}',
                 amount=total_price,
                 status='completed',
                 payment_method='simulated',
@@ -484,59 +480,51 @@ class CreateOrderView(APIView):
                 ),
             })
 
-        # Production: Generate PayU parameters
-        prefix = 'eb' if order_type == 'ebook' else 'ph'
-        payu_order_id = _generate_txnid(prefix, order.id)
+        # Production: Create Cashfree order
+        cf_order_id = _generate_order_id('ord', order.id)
 
-        # PayU success/failure return URLs
+        customer_details = {
+            'customer_id': str(request.user.id),
+            'customer_name': request.data.get('full_name', request.user.get_full_name() or 'Customer'),
+            'customer_email': request.data.get('email', request.user.email),
+            'customer_phone': _normalize_phone(request.data.get('phone', request.user.phone or '9999999999')),
+        }
+
         success_url = (
             f"{settings.FRONTEND_URL}/payment-success"
-            f"?order_id={payu_order_id}&type={order_type}"
-        )
-        failure_url = (
-            f"{settings.FRONTEND_URL}/payment-failure"
-            f"?order_id={payu_order_id}&type={order_type}"
+            f"?order_id={cf_order_id}&type={order_type}"
         )
 
-        # Prepare product info
-        product_info = book.title
-
-        # Get customer details
-        firstname = request.data.get('full_name', request.user.get_full_name() or 'Customer')
-        email = request.data.get('email', request.user.email)
-        phone = _normalize_phone(request.data.get('phone', request.user.phone or '9999999999'))
-
-        # Generate hash
-        key = settings.PAYU_KEY
-        salt = settings.PAYU_SALT
-
-        hash_value = _generate_payu_hash(
-            key=key,
-            txnid=payu_order_id,
+        cf_response = _cf_create_order(
+            order_id=cf_order_id,
             amount=total_price,
-            productinfo=product_info,
-            firstname=firstname,
-            email=email,
-            salt=salt,
+            customer_details=customer_details,
+            return_url=success_url
         )
 
-        # Store PayU order ID on Order record
-        order.payu_order_id = payu_order_id
-        order.save(update_fields=['payu_order_id'])
+        if 'error' in cf_response:
+            return Response(
+                {'error': f"Failed to create Cashfree order: {cf_response['error']}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        # Return PayU payment parameters
+        payment_session_id = cf_response.get('payment_session_id')
+        if not payment_session_id:
+            return Response(
+                {'error': 'No payment session ID received from Cashfree'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Store Cashfree order ID on Order record
+        order.cashfree_order_id = cf_order_id
+        order.save(update_fields=['cashfree_order_id'])
+
+        # Return Cashfree payment parameters
         return Response({
             'order_id': str(order.id),
-            'payu_order_id': payu_order_id,
+            'cashfree_order_id': cf_order_id,
+            'payment_session_id': payment_session_id,
             'amount': total_price,
-            'product_info': product_info,
-            'firstname': firstname,
-            'email': email,
-            'phone': phone,
-            'surl': success_url,
-            'furl': failure_url,
-            'hash': hash_value,
-            'key': settings.PAYU_KEY,  # PayU needs key on frontend
             'book_title': book.title,
             'book_cover': book.cover_image.url if book.cover_image else None,
             'delivery_charge': delivery_charge,
@@ -549,11 +537,11 @@ class CreateOrderView(APIView):
 
 class EbookPurchaseView(APIView):
     """
-    Create a PayU payment order for dedicated eBook checkout.
+    Create a Cashfree payment order for dedicated eBook checkout.
     Collects user_name, phone, address before initiating payment.
 
     Simulation mode: auto-completes and adds book to library.
-    Production mode: returns PayU payment parameters.
+    Production mode: returns Cashfree payment_session_id.
 
     POST /api/orders/ebook-purchase/
     """
@@ -601,10 +589,10 @@ class EbookPurchaseView(APIView):
         )
 
         # Simulation mode
-        if not _payu_configured():
+        if not _cashfree_configured():
             purchase.payment_status = 'completed'
             purchase.transaction_id = f'sim_{purchase.id}'
-            purchase.payu_order_id = f'sim_{purchase.id}'
+            purchase.cashfree_order_id = f'sim_{purchase.id}'
             purchase.save()
             UserLibrary.objects.get_or_create(user=request.user, book=book, defaults={'order': None})
             _send_admin_email_for_purchase(purchase)
@@ -614,52 +602,50 @@ class EbookPurchaseView(APIView):
                 'book_title': book.title,
             })
 
-        # Production: Generate PayU parameters
-        payu_order_id = _generate_txnid('eb', purchase.id)
+        # Production: Create Cashfree order
+        cf_order_id = _generate_order_id('eb', purchase.id)
+
+        customer_details = {
+            'customer_id': str(request.user.id),
+            'customer_name': user_name,
+            'customer_email': email,
+            'customer_phone': _normalize_phone(phone),
+        }
+
         success_url = (
             f"{settings.FRONTEND_URL}/payment-success"
-            f"?order_id={payu_order_id}&type=ebook"
-        )
-        failure_url = (
-            f"{settings.FRONTEND_URL}/payment-failure"
-            f"?order_id={payu_order_id}&type=ebook"
+            f"?order_id={cf_order_id}&type=ebook"
         )
 
-        product_info = book.title
-        firstname = user_name
-        email_addr = email
-        phone_num = _normalize_phone(phone)
-
-        # Generate hash
-        key = settings.PAYU_KEY
-        salt = settings.PAYU_SALT
-
-        hash_value = _generate_payu_hash(
-            key=key,
-            txnid=payu_order_id,
+        cf_response = _cf_create_order(
+            order_id=cf_order_id,
             amount=float(unit_price),
-            productinfo=product_info,
-            firstname=firstname,
-            email=email_addr,
-            salt=salt,
+            customer_details=customer_details,
+            return_url=success_url
         )
 
-        # Store PayU order ID
-        purchase.payu_order_id = payu_order_id
-        purchase.save(update_fields=['payu_order_id'])
+        if 'error' in cf_response:
+            return Response(
+                {'error': f"Failed to create Cashfree order: {cf_response['error']}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        payment_session_id = cf_response.get('payment_session_id')
+        if not payment_session_id:
+            return Response(
+                {'error': 'No payment session ID received from Cashfree'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Store Cashfree order ID
+        purchase.cashfree_order_id = cf_order_id
+        purchase.save(update_fields=['cashfree_order_id'])
 
         return Response({
             'purchase_id': str(purchase.id),
-            'payu_order_id': payu_order_id,
+            'cashfree_order_id': cf_order_id,
+            'payment_session_id': payment_session_id,
             'amount': float(unit_price),
-            'product_info': product_info,
-            'firstname': firstname,
-            'email': email_addr,
-            'phone': phone_num,
-            'surl': success_url,
-            'furl': failure_url,
-            'hash': hash_value,
-            'key': settings.PAYU_KEY,
             'book_title': book.title,
             'book_cover': book.cover_image.url if book.cover_image else None,
         })
@@ -667,11 +653,11 @@ class EbookPurchaseView(APIView):
 
 class CartCheckoutView(APIView):
     """
-    Create a PayU payment order for multi-item cart checkout.
+    Create a Cashfree payment order for multi-item cart checkout.
     Items are stored server-side for tamper-proofing.
 
-    Simulation mode: creates orders directly without PayU.
-    Production mode: returns PayU payment parameters.
+    Simulation mode: creates orders directly without Cashfree.
+    Production mode: returns Cashfree payment_session_id.
 
     POST /api/orders/cart-checkout/
     """
@@ -687,67 +673,63 @@ class CartCheckoutView(APIView):
             return Response({'error': 'Invalid total amount'}, status=status.HTTP_400_BAD_REQUEST)
 
         session_uuid = uuid.uuid4()
-        payu_order_id = _generate_txnid('ct', session_uuid)
+        cf_order_id = _generate_order_id('ct', session_uuid)
 
         # Simulation mode
-        if not _payu_configured():
+        if not _cashfree_configured():
             return self._simulate_cart(request, items, total_amount, session_uuid)
 
         # Store items server-side
         CartCheckoutSession.objects.create(
             id=session_uuid,
             user=request.user,
-            payu_order_id=payu_order_id,
+            cashfree_order_id=cf_order_id,
             items=items,
             total_amount=total_amount,
             status='pending',
         )
 
+        customer_details = {
+            'customer_id': str(request.user.id),
+            'customer_name': request.user.get_full_name() or 'Customer',
+            'customer_email': request.user.email,
+            'customer_phone': _normalize_phone(request.data.get('phone', '9999999999')),
+        }
+
         success_url = (
             f"{settings.FRONTEND_URL}/payment-success"
-            f"?order_id={payu_order_id}&type=cart"
-        )
-        failure_url = (
-            f"{settings.FRONTEND_URL}/payment-failure"
-            f"?order_id={payu_order_id}&type=cart"
+            f"?order_id={cf_order_id}&type=cart"
         )
 
-        # Generic product info for cart
-        product_info = f"{len(items)} item(s) from Kavithedal Publications"
-        firstname = request.user.get_full_name() or 'Customer'
-        email = request.user.email
-        phone = _normalize_phone(request.data.get('phone', '9999999999'))
-
-        # Generate hash
-        key = settings.PAYU_KEY
-        salt = settings.PAYU_SALT
-
-        hash_value = _generate_payu_hash(
-            key=key,
-            txnid=payu_order_id,
+        cf_response = _cf_create_order(
+            order_id=cf_order_id,
             amount=total_amount,
-            productinfo=product_info,
-            firstname=firstname,
-            email=email,
-            salt=salt,
+            customer_details=customer_details,
+            return_url=success_url
         )
+
+        if 'error' in cf_response:
+            return Response(
+                {'error': f"Failed to create Cashfree order: {cf_response['error']}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        payment_session_id = cf_response.get('payment_session_id')
+        if not payment_session_id:
+            return Response(
+                {'error': 'No payment session ID received from Cashfree'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response({
-            'payu_order_id': payu_order_id,
+            'cashfree_order_id': cf_order_id,
+            'payment_session_id': payment_session_id,
             'amount': total_amount,
-            'product_info': product_info,
-            'firstname': firstname,
-            'email': email,
-            'phone': phone,
-            'surl': success_url,
-            'furl': failure_url,
-            'hash': hash_value,
-            'key': settings.PAYU_KEY,
             'session_id': str(session_uuid),
         })
 
     def _simulate_cart(self, request, items, total_amount, session_uuid):
-        """Create orders directly (dev mode — no PayU configured)."""
+        """Create orders directly (dev mode — no Cashfree configured)."""
         from apps.books.models import Book
 
         physical_total = sum(
@@ -758,8 +740,8 @@ class CartCheckoutView(APIView):
         delivery_assigned = False
         created_orders = []
 
-        # Generate a fake PayU order ID for simulation
-        payu_order_id = f"sim_{session_uuid.hex[:12]}"
+        # Generate a fake Cashfree order ID for simulation
+        cf_order_id = f"sim_{session_uuid.hex[:12]}"
 
         for item in items:
             try:
@@ -778,16 +760,16 @@ class CartCheckoutView(APIView):
                     delivery_charge=item_delivery,
                     total_price=item_total,
                     status='completed', delivery_status='pending', payment_status='paid',
-                    payu_order_id=payu_order_id,
-                    payu_payment_id=f'sim_pay_{session_uuid.hex[:8]}',
+                    cashfree_order_id=cf_order_id,
+                    cashfree_payment_id=f'sim_pay_{session_uuid.hex[:8]}',
                     transaction_id=f'sim_txn_{session_uuid.hex[:12]}',
                     full_name=request.user.get_full_name() or '',
                     email=request.user.email,
                 )
                 Payment.objects.create(
                     order=order,
-                    payu_order_id=payu_order_id,
-                    payu_payment_id=f'sim_pay_{session_uuid.hex[:8]}',
+                    cashfree_order_id=cf_order_id,
+                    cashfree_payment_id=f'sim_pay_{session_uuid.hex[:8]}',
                     amount=item_total, status='completed',
                     payment_method='simulated',
                     transaction_id=f'sim_txn_{session_uuid.hex[:12]}',
@@ -804,120 +786,82 @@ class CartCheckoutView(APIView):
             'status': 'completed',
             'message': f'{len(created_orders)} order(s) created successfully',
             'order_ids': created_orders,
-            'payu_order_id': payu_order_id,
+            'cashfree_order_id': cf_order_id,
         })
 
 
-# ============= PAYU CALLBACK VERIFICATION =============
+# ============= CASHFREE PAYMENT VERIFICATION =============
 
-class PayuVerifyPaymentView(APIView):
+class CashfreeVerifyPaymentView(APIView):
     """
-    Verify PayU payment response hash and update order status.
-
-    POST /api/orders/verify-payu-payment/
-    Called from frontend after PayU redirects back to success/failure URLs.
-
-    IMPORTANT: Always verify the hash from PayU response before updating database.
+    Verify Cashfree payment and update order status.
+    Handles both:
+      - Frontend verification (POST from authenticated user after redirect)
+      - Webhook notifications (POST from Cashfree servers with signature)
+    
+    POST /api/orders/verify-cashfree-payment/  (frontend)
+    POST /api/payment/webhook/                 (webhook)
     """
-    permission_classes = [permissions.AllowAny]  # PayU may call without session
+    permission_classes = [permissions.AllowAny]  # Allows both authenticated and unauthenticated (webhook)
 
     def post(self, request):
+        # ── Determine request source: webhook vs frontend verification ─────────────
+        signature = request.headers.get('x-cashfree-signature') or request.headers.get('X-Cashfree-Signature')
+        is_webhook = False
+        if signature:
+            # Verify Cashfree webhook signature
+            secret = getattr(settings, 'CASHFREE_WEBHOOK_SECRET', '')
+            if not secret:
+                logger.error("Cashfree webhook secret not configured")
+                return Response({'error': 'Server misconfigured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            body = request.body
+            expected_signature = hmac.new(
+                secret.encode('utf-8'),
+                body,
+                hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(signature, expected_signature):
+                logger.warning("Cashfree webhook signature mismatch")
+                return Response({'error': 'Invalid signature'}, status=status.HTTP_403_FORBIDDEN)
+            is_webhook = True
+        else:
+            # Frontend verification — require authentication
+            if not request.user.is_authenticated:
+                return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        order_id = request.data.get('order_id')
+        if not order_id:
+            return Response({'error': 'order_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # For Cashfree, verify by checking the order status via API
+        cf_order = _cf_get_order(order_id)
+        if not cf_order:
+            return Response({'error': 'Order not found in Cashfree'}, status=status.HTTP_404_NOT_FOUND)
+
+        payment_status = cf_order.get('payment_status', '').upper()
+        is_success = payment_status == 'SUCCESS'
+
+        return self._process_payment(order_id, is_success, cf_order, is_webhook=is_webhook)
+
+    def _process_payment(self, cf_order_id, is_success, cf_data, is_webhook=False):
         """
-        Verify PayU payment callback.
-
-        Expected PayU response fields:
-        - key: Merchant key
-        - txnid: Transaction ID
-        - amount: Amount
-        - productinfo: Product info
-        - firstname: Customer name
-        - email: Customer email
-        - status: success/failure
-        - hash: SHA-512 hash from PayU
-        - Optional: udf1-udf5, bank_ref_num, mihpayid
-        """
-        data = request.data
-
-        # Extract fields
-        received_key = data.get('key', '')
-        received_txnid = data.get('txnid', '')
-        received_amount = data.get('amount', '')
-        received_productinfo = data.get('productinfo', '')
-        received_firstname = data.get('firstname', '')
-        received_email = data.get('email', '')
-        received_status = data.get('status', '')
-        received_hash = data.get('hash', '')
-
-        logger.info(f"PayU callback received: txnid={received_txnid}, status={received_status}")
-
-        # Verify hash - NEVER TRUST FRONTEND DATA without hash verification
-        expected_hash = self._verify_payu_hash(data)
-        if not expected_hash:
-            logger.error(f"PayU hash verification failed for txnid={received_txnid}")
-            return Response(
-                {'error': 'Hash verification failed - possible tampering'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if expected_hash != received_hash:
-            logger.error(f"PayU hash mismatch: expected={expected_hash}, received={received_hash}")
-            return Response(
-                {'error': 'Hash mismatch - invalid payment data'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Update payment records based on status
-        is_success = received_status.lower() == 'success'
-        return self._process_payment(received_txnid, is_success, data)
-
-    def _verify_payu_hash(self, data):
-        """
-        Verify PayU SHA-512 hash.
-
-        Hash format for success:
-        key|txnid|amount|productinfo|firstname|email|||||||||||salt
-
-        For failure (if provided):
-        key|txnid|amount|productinfo|firstname|email|||||||||||salt (same format)
+        Update EbookPurchase, Order, or CartCheckoutSession based on Cashfree confirmation.
         """
         try:
-            key = settings.PAYU_KEY
-            salt = settings.PAYU_SALT
-
-            # Build verification string
-            hash_string = (
-                f"{key}|{data.get('txnid','')}|{data.get('amount','')}|"
-                f"{data.get('productinfo','')}|{data.get('firstname','')}|{data.get('email','')}"
-                f"|||||||||||{salt}"
-            )
-
-            expected_hash = hashlib.sha512(hash_string.encode('utf-8')).hexdigest().lower()
-            return expected_hash
-        except Exception as e:
-            logger.error(f"PayU hash verification error: {e}")
-            return None
-
-    def _process_payment(self, payu_order_id, is_success, payu_data):
-        """
-        Update EbookPurchase, Order, or CartCheckoutSession based on PayU confirmation.
-        """
-        try:
-            # Extract PayU payment ID
-            payu_payment_id = payu_data.get('mihpayid', '')
+            cf_payment_id = cf_data.get('cf_payment_id', '')
 
             if is_success:
                 # 1. EbookPurchase
                 try:
                     purchase = EbookPurchase.objects.get(
-                        user__email=payu_data.get('email', ''),
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         payment_status='initiated'
                     )
                     with transaction.atomic():
                         purchase.payment_status = 'completed'
-                        purchase.payu_payment_id = payu_payment_id
-                        purchase.transaction_id = payu_payment_id
-                        purchase.save(update_fields=['payment_status', 'payu_payment_id', 'transaction_id'])
+                        purchase.cashfree_payment_id = cf_payment_id
+                        purchase.transaction_id = cf_payment_id
+                        purchase.save(update_fields=['payment_status', 'cashfree_payment_id', 'transaction_id'])
 
                         # Add to user library
                         UserLibrary.objects.get_or_create(
@@ -934,7 +878,7 @@ class PayuVerifyPaymentView(APIView):
                             order_id=str(purchase.id),
                         )
 
-                    logger.info(f"PayU e-book purchase completed: purchase_id={purchase.id}")
+                    logger.info(f"Cashfree e-book purchase completed: purchase_id={purchase.id}")
                     return Response({
                         'status': 'success',
                         'paid': True,
@@ -948,24 +892,24 @@ class PayuVerifyPaymentView(APIView):
                 # 2. Order (from CreateOrderView)
                 try:
                     order = Order.objects.get(
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         payment_status='pending'
                     )
                     with transaction.atomic():
                         Payment.objects.create(
                             order=order,
-                            payu_order_id=payu_order_id,
-                            payu_payment_id=payu_payment_id,
+                            cashfree_order_id=cf_order_id,
+                            cashfree_payment_id=cf_payment_id,
                             amount=order.total_price,
                             status='completed',
-                            payment_method='payu',
-                            transaction_id=payu_payment_id,
+                            payment_method='cashfree',
+                            transaction_id=cf_payment_id,
                         )
                         order.payment_status = 'paid'
                         order.status = 'completed'
-                        order.payu_payment_id = payu_payment_id
-                        order.transaction_id = payu_payment_id
-                        order.save(update_fields=['payment_status', 'status', 'payu_payment_id', 'transaction_id'])
+                        order.cashfree_payment_id = cf_payment_id
+                        order.transaction_id = cf_payment_id
+                        order.save(update_fields=['payment_status', 'status', 'cashfree_payment_id', 'transaction_id'])
 
                         # Grant ebook access if applicable
                         if order.order_type == 'ebook':
@@ -986,7 +930,7 @@ class PayuVerifyPaymentView(APIView):
                             ),
                         )
 
-                    logger.info(f"PayU order completed: order_id={order.id}")
+                    logger.info(f"Cashfree order completed: order_id={order.id}")
                     return Response({
                         'status': 'success',
                         'paid': True,
@@ -1000,10 +944,15 @@ class PayuVerifyPaymentView(APIView):
                 # 3. CartCheckoutSession
                 try:
                     cart_session = CartCheckoutSession.objects.get(
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         status='pending'
                     )
-                    self._complete_cart(request, cart_session, payu_order_id, payu_data)
+                    # Determine which user to assign orders to
+                    if is_webhook:
+                        user = cart_session.user
+                    else:
+                        user = self.request.user
+                    self._complete_cart(user, cart_session, cf_order_id, cf_data)
                     return Response({
                         'status': 'success',
                         'paid': True,
@@ -1013,7 +962,7 @@ class PayuVerifyPaymentView(APIView):
                     pass
 
                 # No matching order found
-                logger.error(f"PayU: No matching order found for payu_order_id={payu_order_id}")
+                logger.error(f"Cashfree: No matching order found for cf_order_id={cf_order_id}")
                 return Response(
                     {'error': 'Order not found'},
                     status=status.HTTP_404_NOT_FOUND
@@ -1022,32 +971,32 @@ class PayuVerifyPaymentView(APIView):
             else:  # Payment failed
                 with transaction.atomic():
                     EbookPurchase.objects.filter(
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         payment_status='initiated'
                     ).update(payment_status='failed')
                     Order.objects.filter(
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         payment_status='pending'
                     ).update(payment_status='failed', status='cancelled')
                     CartCheckoutSession.objects.filter(
-                        payu_order_id=payu_order_id,
+                        cashfree_order_id=cf_order_id,
                         status='pending'
                     ).update(status='failed')
 
-                logger.info(f"PayU payment failed for order_id={payu_order_id}")
+                logger.info(f"Cashfree payment failed for order_id={cf_order_id}")
                 return Response({
                     'status': 'failure',
                     'paid': False,
                 })
 
         except Exception as e:
-            logger.error(f"PayU payment processing error: {e}", exc_info=True)
+            logger.error(f"Cashfree payment processing error: {e}", exc_info=True)
             return Response(
                 {'error': 'Payment processing failed'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    def _complete_cart(self, request, cart_session, payu_order_id, payu_data):
+    def _complete_cart(self, user, cart_session, cf_order_id, cf_data):
         """Create Order records from cart session after successful payment."""
         from apps.books.models import Book
 
@@ -1061,6 +1010,7 @@ class PayuVerifyPaymentView(APIView):
         total_delivery = calculate_delivery_charge(physical_total)
         delivery_assigned = False
         book_titles = []
+        cf_payment_id = cf_data.get('cf_payment_id', '')
 
         with transaction.atomic():
             for item in items:
@@ -1073,7 +1023,7 @@ class PayuVerifyPaymentView(APIView):
                     item_total = float(item.get('price', 0)) * int(item.get('qty', 1)) + item_delivery
 
                     order = Order.objects.create(
-                        user=request.user, book=book,
+                        user=user, book=book,
                         order_type=item.get('book_type', 'physical'),
                         quantity=item.get('qty', 1),
                         book_price=item.get('price', 0),
@@ -1082,24 +1032,24 @@ class PayuVerifyPaymentView(APIView):
                         status='completed',
                         delivery_status='pending',
                         payment_status='paid',
-                        payu_order_id=payu_order_id,
-                        payu_payment_id=payu_data.get('mihpayid', ''),
-                        transaction_id=payu_data.get('mihpayid', ''),
-                        full_name=request.user.get_full_name() or '',
-                        email=request.user.email,
+                        cashfree_order_id=cf_order_id,
+                        cashfree_payment_id=cf_payment_id,
+                        transaction_id=cf_payment_id,
+                        full_name=user.get_full_name() or '',
+                        email=user.email,
                     )
                     Payment.objects.create(
                         order=order,
-                        payu_order_id=payu_order_id,
-                        payu_payment_id=payu_data.get('mihpayid', ''),
+                        cashfree_order_id=cf_order_id,
+                        cashfree_payment_id=cf_payment_id,
                         amount=item_total,
                         status='completed',
-                        payment_method='payu',
-                        transaction_id=payu_data.get('mihpayid', ''),
+                        payment_method='cashfree',
+                        transaction_id=cf_payment_id,
                     )
                     if order.order_type == 'ebook':
                         UserLibrary.objects.get_or_create(
-                            user=request.user, book=book, defaults={'order': order}
+                            user=user, book=book, defaults={'order': order}
                         )
                     book_titles.append(book.title)
                 except Book.DoesNotExist:
@@ -1110,15 +1060,15 @@ class PayuVerifyPaymentView(APIView):
 
         # Send confirmation email
         _send_customer_email(
-            customer_email=request.user.email,
-            customer_name=request.user.get_full_name() or request.user.email,
+            customer_email=user.email,
+            customer_name=user.get_full_name() or user.email,
             book_titles=book_titles,
             order_type='physical',
             amount=float(total_amount),
-            order_id=payu_order_id,
+            order_id=cf_order_id,
         )
 
-        logger.info(f"PayU cart order completed: cart_id={cart_session.id}, orders={len(book_titles)}")
+        logger.info(f"Cashfree cart order completed: cart_id={cart_session.id}, orders={len(book_titles)}")
 
 
 class CalculateDeliveryView(APIView):

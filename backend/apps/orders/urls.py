@@ -1,12 +1,12 @@
 """
-URL Configuration for Orders App — PayU payment integration.
+URL Configuration for Orders App — Cashfree payment integration.
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     OrderViewSet, PaymentViewSet, UserLibraryViewSet,
     CreateOrderView, EbookPurchaseView, CartCheckoutView,
-    PayuVerifyPaymentView, DeliveryZoneViewSet, CalculateDeliveryView,
+    CashfreeVerifyPaymentView, DeliveryZoneViewSet, CalculateDeliveryView,
 )
 
 router = DefaultRouter()
@@ -32,8 +32,8 @@ urlpatterns = [
     # Cart checkout (multi-item)
     path('cart-checkout/', CartCheckoutView.as_view(), name='cart-checkout'),
 
-    # PayU payment verification (called from frontend after PayU redirect)
-    path('verify-payu-payment/', PayuVerifyPaymentView.as_view(), name='verify-payu-payment'),
+    # Cashfree payment verification (called from frontend after Cashfree redirect)
+    path('verify-cashfree-payment/', CashfreeVerifyPaymentView.as_view(), name='verify-cashfree-payment'),
 
     # Delivery charge calculator
     path('calculate-delivery/', CalculateDeliveryView.as_view(), name='calculate-delivery-total'),

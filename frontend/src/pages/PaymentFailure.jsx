@@ -5,7 +5,7 @@ import "../styles/bookDetail.css";
 
 /**
  * PaymentFailure — shown when a payment is explicitly cancelled or failed.
- * PayU may redirect here if the merchant sets a failure return_url,
+ * Cashfree may redirect here if the merchant sets a failure return_url,
  * or the app can redirect here after a failed verification.
  */
 export default function PaymentFailure() {

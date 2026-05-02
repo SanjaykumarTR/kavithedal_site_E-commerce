@@ -3,14 +3,14 @@ import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import { CartContext } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { verifyPayuPayment } from "../api/orders";
+import { verifyCashfreePayment } from "../api/orders";
 import "../styles/bookDetail.css";
 
 /**
- * PurchaseSuccess — landing page after PayU redirects the user back.
+ * PurchaseSuccess — landing page after Cashfree redirects the user back.
  *
- * URL params (set by backend return_url + PayU):
- *   ?order_id=kv-eb-xxx   — the PayU transaction ID
+ * URL params (set by backend return_url + Cashfree):
+ *   ?order_id=kv-ord-xxx   — the Cashfree order ID
  *   &type=ebook|physical|cart
  *   &book=Book+Title       — (optional) book title for display
  */
@@ -75,7 +75,7 @@ export default function PurchaseSuccess() {
     setVerifying(true);
     setErrorMsg("");
     try {
-      const data = await verifyPayuPayment(orderId);
+      const data = await verifyCashfreePayment(orderId);
 
       if (data.paid) {
         setVerified(true);
@@ -85,7 +85,9 @@ export default function PurchaseSuccess() {
         }
       } else {
         const statusMsg =
-          data.status === "ACTIVE"
+          data.status === "SUCCESS"
+            ? "Payment successful!"
+            : data.status === "ACTIVE"
             ? "Payment is still processing. Please wait a moment and retry."
             : data.status === "EXPIRED"
             ? "Payment session expired. Please try purchasing again."

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
-import { createOrder, initiatePayuCheckout } from "../api/orders";
+import { createOrder, initiateCashfreeCheckout } from "../api/orders";
 import { mediaUrl } from "../utils/mediaUrl";
 import "../styles/bookDetail.css";
 
@@ -52,7 +52,7 @@ export default function PhysicalPurchase() {
       bookNotFound: "Book not found",
       deliveryAvailable: "Delivery Details",
       checkingDeliveryInfo: "Checking...",
-       securePayment: "100% Secure Payment via PayU",
+       securePayment: "100% Secure Payment via Cashfree",
     },
     ta: {
       title: "இயல்பான புத்தகம் வாங்குதல்",
@@ -75,7 +75,7 @@ export default function PhysicalPurchase() {
       bookNotFound: "புத்தகம் கிடைக்கவில்லை",
       deliveryAvailable: "டெலிவரி விவரங்கள்",
       checkingDeliveryInfo: "சரிபார்க்கிறது...",
-       securePayment: "PayU மூலம் 100% பாதுகாப்பான கட்டணம்",
+       securePayment: "Cashfree மூலம் 100% பாதுகாப்பான கட்டணம்",
     },
   };
 
@@ -161,7 +161,7 @@ export default function PhysicalPurchase() {
         shipping_pincode: formData.shipping_pincode,
       });
 
-       // Simulation mode (backend has no PayU keys)
+        // Simulation mode (backend has no Cashfree keys)
        if (data.purchased || data.status === "completed") {
          navigate(
            `/payment-success?order_id=${data.order_id}&type=physical&book=${encodeURIComponent(data.book_title)}`
@@ -169,9 +169,9 @@ export default function PhysicalPurchase() {
          return;
        }
 
-       // Production — redirect to PayU
-       if (data.payu_order_id) {
-         initiatePayuCheckout(data);
+        // Production — redirect to Cashfree
+        if (data.payment_session_id) {
+          initiateCashfreeCheckout(data);
          return;
        }
 

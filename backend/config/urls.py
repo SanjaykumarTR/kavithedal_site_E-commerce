@@ -7,7 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from apps.books import views
-from apps.orders.views import PayuVerifyPaymentView
+from apps.orders.views import CashfreeVerifyPaymentView
 
 
 def health_check(request):
@@ -30,8 +30,8 @@ urlpatterns = [
     path('api/orders/', include('apps.orders.urls')),
     path('api/wishlist/', include('apps.wishlist.urls')),
 
-    # PayU payment verification endpoint
-    path('api/payment/verify-payu/', PayuVerifyPaymentView.as_view(), name='payu-verify'),
+    # Cashfree payment webhook endpoint
+    path('api/payment/webhook/', CashfreeVerifyPaymentView.as_view(), name='cashfree-webhook'),
 
     # Secure PDF file access (requires authentication + purchase)
     path('api/books/<uuid:book_id>/pdf/', views.SecureFileView.as_view(), name='secure-pdf'),

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
-import { createEbookPurchase, initiatePayuCheckout } from "../api/orders";
+import { createEbookPurchase, initiateCashfreeCheckout } from "../api/orders";
 import { mediaUrl } from "../utils/mediaUrl";
 import "../styles/bookDetail.css";
 
@@ -45,7 +45,7 @@ export default function EbookPurchase() {
       confirmMessage: "Do you want to purchase this eBook for ₹{{price}}?",
       confirmYes: "Yes, Pay Now",
       confirmNo: "Cancel",
-       securePayment: "100% Secure Payment via PayU",
+securePayment: "100% Secure Payment via Cashfree",
     },
     ta: {
       title: "இ-புத்தகம் வாங்குதல்",
@@ -65,7 +65,7 @@ export default function EbookPurchase() {
       confirmMessage: "இந்த இ-புத்தகத்தை ₹{{price}}க்கு வாங்க விரும்புகிறீர்களா?",
       confirmYes: "ஆம், பணம் செலுத்து",
       confirmNo: "இல்லை",
-       securePayment: "PayU மூலம் 100% பாதுகாப்பான கட்டணம்",
+       securePayment: "Cashfree மூலம் 100% பாதுகாப்பான கட்டணம்",
     },
   };
 
@@ -125,7 +125,7 @@ export default function EbookPurchase() {
       // Debug: Log the response
       console.log('EbookPurchase response:', data);
 
-      // Simulation mode (no PayU keys configured on backend)
+       // Simulation mode (no Cashfree keys configured on backend)
       if (data.status === "completed") {
         navigate(
           `/payment-success?order_id=${data.purchase_id}&type=ebook&book=${encodeURIComponent(data.book_title)}`
@@ -133,15 +133,15 @@ export default function EbookPurchase() {
         return;
       }
 
-      // Production mode — redirect to PayU payment page
-      if (data.payu_order_id) {
-        console.log('Initiating PayU checkout with data:', data);
-        initiatePayuCheckout(data);
+       // Production mode — redirect to Cashfree payment page
+       if (data.payment_session_id) {
+         console.log('Initiating Cashfree checkout with data:', data);
+         initiateCashfreeCheckout(data);
         // This triggers a full-page redirect — no code runs after this
         return;
       }
 
-      // If no payu_order_id and no status=completed, show error
+       // If no payment_session_id and no status=completed, show error
       console.error('Missing payment parameters in response:', data);
       setError("Payment gateway error. Please contact support.");
     } catch (err) {
@@ -267,7 +267,7 @@ export default function EbookPurchase() {
             <h3>{t.confirmPurchase}</h3>
             <p>{t.confirmMessage.replace("{{price}}", book?.ebook_price)}</p>
              <p className="modal-note">
-               You will be redirected to the PayU secure payment page.
+                You will be redirected to the Cashfree secure payment page.
              </p>
             <div className="modal-buttons">
               <button

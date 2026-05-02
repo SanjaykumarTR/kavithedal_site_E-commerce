@@ -35,7 +35,7 @@ class OrderAdmin(admin.ModelAdmin):
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['id', 'order', 'amount', 'status', 'payment_method', 'gateway_id', 'created_at']
     list_filter = ['status', 'payment_method', 'created_at']
-    search_fields = ['order__id', 'transaction_id', 'payu_payment_id', 'razorpay_payment_id']
+    search_fields = ['order__id', 'transaction_id', 'payu_payment_id', 'razorpay_payment_id', 'cashfree_payment_id']
     readonly_fields = ['id', 'created_at', 'updated_at']
 
     def gateway_id(self, obj):

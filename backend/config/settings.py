@@ -358,23 +358,27 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 
 
-# ─── PayU Payment Gateway ────────────────────────────────────────────────────────
-# Get credentials from https://merchant.payu.in → Settings → API Keys
-# For sandbox: https://sandbox.juspay.in (use test credentials)
-PAYU_KEY = os.environ.get('PAYU_KEY', '')
-PAYU_SALT = os.environ.get('PAYU_SALT', '')
+# ─── Cashfree Payment Gateway ─────────────────────────────────────────────────
+# Get credentials from https://merchant.cashfree.com → Developers → API Keys
+CASHFREE_APP_ID = os.environ.get('CASHFREE_APP_ID', '')
+CASHFREE_SECRET_KEY = os.environ.get('CASHFREE_SECRET_KEY', '')
+CASHFREE_WEBHOOK_SECRET = os.environ.get('CASHFREE_WEBHOOK_SECRET', '')
 
-# PayU Base URL - sandbox for testing, production for live
-# Sandbox: https://sandbox.juspay.in
-# Production: https://api.juspay.in
-PAYU_BASE_URL = os.environ.get('PAYU_BASE_URL', 'https://sandbox.juspay.in')
+# Cashfree Base URL - sandbox for testing, production for live
+# Sandbox: https://sandbox.cashfree.com/pg
+# Production: https://api.cashfree.com/pg
+CASHFREE_BASE_URL = os.environ.get('CASHFREE_BASE_URL', 'https://sandbox.cashfree.com/pg')
 
 # 'sandbox' for testing, 'production' for live payments
-PAYU_ENV = os.environ.get('PAYU_ENV', 'sandbox')
+CASHFREE_ENV = os.environ.get('CASHFREE_ENV', 'sandbox')
 
-# Frontend URL — used to build PayU return/failure URLs after payment
+# Frontend URL — used to build Cashfree return URL after payment
 # Set to your deployed frontend URL in production, e.g. https://kavithedal.com
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+# Backend URL — used for webhook endpoints (Cashfree notify_url)
+# Set to your deployed backend URL in production, e.g. https://kavithedal-api.onrender.com
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
 
 
 # ─── Admin Email ──────────────────────────────────────────────────────────────

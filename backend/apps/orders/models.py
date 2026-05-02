@@ -129,7 +129,10 @@ class Order(models.Model):
     # Payment info - Razorpay (legacy, kept for historical data)
     razorpay_order_id = models.CharField(max_length=100, blank=True)
     razorpay_payment_id = models.CharField(max_length=100, blank=True)
-    # PayU payment fields
+    # Cashfree payment fields
+    cashfree_order_id = models.CharField(max_length=100, blank=True, null=True)
+    cashfree_payment_id = models.CharField(max_length=100, blank=True, null=True)
+    # PayU payment fields (legacy)
     payu_order_id = models.CharField(max_length=100, blank=True, null=True)
     payu_payment_id = models.CharField(max_length=100, blank=True, null=True)
     payu_signature = models.CharField(max_length=200, blank=True, null=True)
@@ -173,6 +176,7 @@ class Payment(models.Model):
         ('upi', 'UPI'),
         ('netbanking', 'Net Banking'),
         ('payu', 'PayU'),
+        ('cashfree', 'Cashfree'),
         ('simulated', 'Simulated (Dev/Test)'),
     ]
     
@@ -186,6 +190,8 @@ class Payment(models.Model):
     razorpay_order_id = models.CharField(max_length=100, blank=True)
     razorpay_payment_id = models.CharField(max_length=100, blank=True)
     razorpay_signature = models.CharField(max_length=200, blank=True)
+    cashfree_order_id = models.CharField(max_length=100, blank=True, null=True)
+    cashfree_payment_id = models.CharField(max_length=100, blank=True, null=True)
     payu_order_id = models.CharField(max_length=100, blank=True, null=True)
     payu_payment_id = models.CharField(max_length=100, blank=True, null=True)
     payu_signature = models.CharField(max_length=200, blank=True, null=True)
