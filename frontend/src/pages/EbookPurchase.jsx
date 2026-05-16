@@ -1,0 +1,298 @@
+import { useState, useEffect, useContext } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { LanguageContext } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
+import api from "../api/axios";
+import { createEbookPurchase, initiateCashfreeCheckout } from "../api/orders";
+import { mediaUrl } from "../utils/mediaUrl";
+import "../styles/bookDetail.css";
+
+export default function EbookPurchase() {
+  const { id } = useParams();
+  const { language } = useContext(LanguageContext);
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  const [book, setBook] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [showConfirmation, setShowConfirmation] = useState(false);
+
+  const [formData, setFormData] = useState({
+    user_name: "",
+    email: "",
+    phone: "",
+    address: "",
+  });
+
+  const translations = {
+    en: {
+      title: "eBook Purchase",
+      bookDetails: "Book Details",
+      fullName: "Full Name",
+      email: "Email Address",
+      phone: "Phone Number",
+      address: "Contact Address",
+      proceedToPay: "Proceed to Pay",
+      price: "Price",
+      processing: "Processing...",
+      redirecting: "Redirecting to payment...",
+      bookNotFound: "Book not found",
+      loginRequired: "Please login to purchase eBooks",
+      alreadyOwned: "You already own this eBook",
+      confirmPurchase: "Confirm Your Purchase?",
+      confirmMessage: "Do you want to purchase this eBook for ₹{{price}}?",
+      confirmYes: "Yes, Pay Now",
+      confirmNo: "Cancel",
+      securePayment: "100% Secure Payment via Cashfree",
+    },
+    ta: {
+      title: "இ-புத்தகம் வாங்குதல்",
+      bookDetails: "புத்தக விவரங்கள்",
+      fullName: "முழு பெயர்",
+      email: "மின்னஞ்சல் முகவரி",
+      phone: "தொலைபேசி எண்",
+      address: "தொடர்பு முகவரி",
+      proceedToPay: "பணம் செலுத்து",
+      price: "விலை",
+      processing: "செயலாக்குகிறது...",
+      redirecting: "பணம் செலுத்தலுக்கு திருப்பிவிடுகிறது...",
+      bookNotFound: "புத்தகம் கிடைக்கவில்லை",
+      loginRequired: "இ-புத்தகங்களை வாங்க உள்நுழையவும்",
+      alreadyOwned: "இந்த இ-புத்தகத்தை ஏற்கனவு வாங்கி விட்டீர்கள்",
+      confirmPurchase: "நீங்கள் வாங்க விரும்புகிறீர்களா?",
+      confirmMessage: "இந்த இ-புத்தகத்தை ₹{{price}}க்கு வாங்க விரும்புகிறீர்களா?",
+      confirmYes: "ஆம், பணம் செலுத்து",
+      confirmNo: "இல்லை",
+      securePayment: "Cashfree மூலம் 100% பாதுகாப்பான கட்டணம்",
+    },
+  };
+
+  const t = translations[language];
+
+  useEffect(() => {
+    fetchBook();
+  }, [id]);
+
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        user_name: user.name || "",
+        email: user.email || "",
+      }));
+    }
+  }, [user]);
+
+  const fetchBook = async () => {
+    try {
+      const response = await api.get(`/api/books/${id}/`);
+      setBook(response.data);
+    } catch {
+      // book stays null → shows not-found UI
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmPurchase = async () => {
+    setShowConfirmation(false);
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const data = await createEbookPurchase(id, {
+        user_name: formData.user_name,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+      });
+
+      // Debug: Log the response
+      console.log('EbookPurchase response:', data);
+
+      // Simulation mode (no Cashfree keys configured on backend)
+      if (data.status === "completed") {
+        navigate(
+          `/payment-success?order_id=${data.purchase_id}&type=ebook&book=${encodeURIComponent(data.book_title)}`
+        );
+        return;
+      }
+
+      // Production mode — redirect to Cashfree payment page
+      if (data.payment_session_id) {
+        console.log('Initiating Cashfree checkout with session:', data.payment_session_id);
+        initiateCashfreeCheckout(data.payment_session_id)
+          .catch((err) => {
+            console.error('Cashfree checkout failed:', err);
+            setError('Failed to initialize payment. Please try again.');
+            setSubmitting(false);
+          });
+        // ↑ This triggers a full-page redirect — no code runs after this
+        return;
+      }
+
+      // If no payment_session_id and no status=completed, show error
+      console.error('Missing payment_session_id in response:', data);
+      setError("Payment gateway error. Please contact support.");
+    } catch (err) {
+      console.error('EbookPurchase error:', err);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        (err.message || "An error occurred. Please try again.");
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading || authLoading) {
+    return (
+      <div className="book-detail-loading">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!book) {
+    return (
+      <div className="book-detail-error">
+        <h2>{t.bookNotFound}</h2>
+        <Link to="/books">{language === "en" ? "Back to Books" : "புத்தகங்களுக்கு திரும்பு"}</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ebook-purchase-page">
+      <div className="purchase-container">
+        {/* ── Left: Book summary ──────────────────────────────────────────── */}
+        <div className="purchase-left">
+          <h1>{t.title}</h1>
+
+          <div className="book-summary">
+            <img src={mediaUrl(book.cover_image)} alt={book.title} />
+            <div className="book-info">
+              <h3>{book.title}</h3>
+              <p>{book.author_name || book.author?.name}</p>
+              <p className="price-label">
+                {t.price}: ₹{book.ebook_price}
+              </p>
+            </div>
+          </div>
+
+          <div className="secure-badge">
+            <span>🔒</span>
+            <span>{t.securePayment}</span>
+          </div>
+        </div>
+
+        {/* ── Right: Purchase form ────────────────────────────────────────── */}
+        <div className="purchase-right">
+          <h2>{t.bookDetails}</h2>
+
+          <form onSubmit={handleSubmit} className="purchase-form">
+            <div className="form-group">
+              <label>{t.fullName}</label>
+              <input
+                type="text"
+                name="user_name"
+                value={formData.user_name}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>{t.email}</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>{t.phone}</label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="10-digit mobile number"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>{t.address}</label>
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                required
+                rows="3"
+              />
+            </div>
+
+            {error && <p className="error-message">{error}</p>}
+
+            <button
+              type="submit"
+              className="btn-proceed"
+              disabled={submitting}
+            >
+              {submitting ? t.processing : t.proceedToPay}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* ── Confirmation modal ─────────────────────────────────────────────── */}
+      {showConfirmation && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>{t.confirmPurchase}</h3>
+            <p>{t.confirmMessage.replace("{{price}}", book?.ebook_price)}</p>
+            <p className="modal-note">
+              You will be redirected to the Cashfree secure payment page.
+            </p>
+            <div className="modal-buttons">
+              <button
+                className="btn-confirm"
+                onClick={handleConfirmPurchase}
+                disabled={submitting}
+              >
+                {submitting ? t.redirecting : t.confirmYes}
+              </button>
+              <button
+                className="btn-cancel"
+                onClick={() => setShowConfirmation(false)}
+                disabled={submitting}
+              >
+                {t.confirmNo}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
