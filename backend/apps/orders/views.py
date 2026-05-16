@@ -29,6 +29,26 @@ from .serializers import (
 
 logger = logging.getLogger('apps')
 
+
+class CashfreeHealthCheckView(APIView):
+    """Check if Cashfree is properly configured."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        app_id = getattr(settings, 'CASHFREE_APP_ID', '')
+        secret_key = getattr(settings, 'CASHFREE_SECRET_KEY', '')
+        base_url = getattr(settings, 'CASHFREE_BASE_URL', '')
+        env = getattr(settings, 'CASHFREE_ENV', '')
+        
+        return Response({
+            'configured': bool(app_id and secret_key),
+            'has_app_id': bool(app_id),
+            'has_secret_key': bool(secret_key),
+            'base_url': base_url or 'using default',
+            'environment': env or 'using default (production)',
+            'app_id_preview': app_id[:10] + '...' if app_id else None,
+        })
+
 # ─── Cashfree API Helpers ──────────────────────────────────────────────────────
 
 _CF_PROD_URL = 'https://api.cashfree.com/pg'
@@ -92,10 +112,16 @@ def _cf_create_order(cf_order_id, amount, customer_id, customer_email,
                       customer_phone, return_url, note=''):
     """POST /pg/orders — create a Cashfree payment order."""
     # Validate credentials before making API call
-    if not getattr(settings, 'CASHFREE_APP_ID', ''):
-        raise ValueError('CASHFREE_APP_ID is not configured')
-    if not getattr(settings, 'CASHFREE_SECRET_KEY', ''):
-        raise ValueError('CASHFREE_SECRET_KEY is not configured')
+    app_id = getattr(settings, 'CASHFREE_APP_ID', '')
+    secret_key = getattr(settings, 'CASHFREE_SECRET_KEY', '')
+    
+    if not app_id:
+        raise ValueError('CASHFREE_APP_ID is not configured - please set this environment variable in Render dashboard')
+    if not secret_key:
+        raise ValueError('CASHFREE_SECRET_KEY is not configured - please set this environment variable in Render dashboard')
+    
+    if len(app_id) < 10:
+        raise ValueError(f'CASHFREE_APP_ID appears invalid (too short): length={len(app_id)}')
     
     payload = {
         'order_id': cf_order_id,
@@ -116,7 +142,7 @@ def _cf_create_order(cf_order_id, amount, customer_id, customer_email,
     # Debug: Log the full request
     logger.info(f'Cashfree create order request: order_id={cf_order_id}, amount={amount}')
     logger.info(f'Cashfree base URL: {_cf_base_url()}')
-    logger.info(f'Cashfree app_id: {getattr(settings, "CASHFREE_APP_ID", "NOT SET")[:10]}...')
+    logger.info(f'Cashfree app_id: {app_id[:15]}...')
     logger.info(f'Cashfree request payload: {json.dumps(payload)}')
 
     try:
@@ -138,7 +164,7 @@ def _cf_create_order(cf_order_id, amount, customer_id, customer_email,
                 elif 'errorDescription' in error_data:
                     error_msg += f' - {error_data["errorDescription"]}'
             except:
-                error_msg += f' - {resp.text}'
+                error_msg += f' - {resp.text[:200]}'
             logger.error(f'Cashfree API error response: {resp.text}')
             raise ValueError(error_msg)
         
